@@ -1,0 +1,232 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>J.A.R.V.I.S.</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{font-family:system-ui,-apple-system,Roboto,sans-serif;background:#0d1117;color:#e6edf3;
+display:flex;flex-direction:column;height:100dvh;overflow:hidden}
+header{padding:calc(10px + env(safe-area-inset-top)) 14px 10px;display:flex;align-items:center;
+gap:10px;border-bottom:1px solid #21262d}
+header .logo{width:26px;height:26px}header .t{font-weight:800;color:#38bdf8;letter-spacing:.5px}
+.icon-btn{margin-left:auto;background:none;border:0;color:#8b949e;font-size:22px}
+#chat{flex:1;overflow-y:auto;padding:16px 12px 96px;display:flex;flex-direction:column;gap:14px;
+max-width:820px;width:100%;margin:0 auto}
+.msg{max-width:88%;padding:12px 14px;border-radius:18px;white-space:pre-wrap;line-height:1.5;font-size:15px}
+.u{align-self:flex-end;background:#2f6feb;color:#fff;border-radius:18px 18px 5px 18px}
+.j{align-self:flex-start;background:#1a2029;border:1px solid #21262d;border-radius:18px 18px 18px 5px}
+.s{align-self:center;color:#8b949e;font-size:12px;font-style:italic;text-align:center}
+footer{position:fixed;left:0;right:0;bottom:0;background:#0d1117;border-top:1px solid #21262d;
+padding:10px 10px calc(10px + env(safe-area-inset-bottom))}
+.bar{display:flex;gap:8px;max-width:820px;margin:0 auto;align-items:flex-end}
+textarea{flex:1;background:#161b22;border:1px solid #30363d;color:#e6edf3;border-radius:22px;
+padding:12px 16px;font-size:16px;resize:none;max-height:120px;font-family:inherit}
+.rbtn{border:0;border-radius:50%;width:46px;height:46px;font-size:20px;flex:0 0 auto}
+#send{background:#38bdf8;color:#0d1117}
+#mic{background:#161b22;color:#38bdf8;border:1px solid #30363d}
+#mic.rec{background:#f85149;color:#fff;border-color:#f85149}
+#vmode{position:fixed;right:16px;bottom:88px;width:58px;height:58px;border-radius:50%;
+background:#161b22;border:1px solid #30363d;color:#38bdf8;font-size:24px;z-index:6;
+box-shadow:0 4px 14px rgba(0,0,0,.4)}
+#vmode.on{background:#238636;color:#fff;border-color:#238636;animation:pulse 1.6s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 #23863688}70%{box-shadow:0 0 0 14px #23863600}100%{box-shadow:0 0 0 0 #23863600}}
+#backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;z-index:10}
+#backdrop.open{display:block}
+#settings{position:fixed;left:0;right:0;bottom:0;background:#161b22;z-index:11;
+border-radius:18px 18px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));
+transform:translateY(100%);transition:transform .22s ease;max-height:86vh;overflow-y:auto}
+#settings.open{transform:translateY(0)}
+#settings h3{margin:0 0 6px;color:#38bdf8}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid #21262d}
+.row:last-child{border-bottom:0}
+select,.mini{width:100%;background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:10px;
+padding:12px;margin-top:8px;font-size:15px}
+.sw{width:46px;height:26px;border-radius:13px;background:#30363d;position:relative;flex:0 0 auto}
+.sw.on{background:#238636}.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;
+border-radius:50%;background:#fff;transition:.15s}.sw.on::after{left:23px}
+label.lbl{font-size:13px;color:#8b949e;display:block;margin-top:10px}
+</style></head><body>
+<header>
+<svg class="logo" viewBox="0 0 512 512"><circle cx="256" cy="256" r="150" fill="none" stroke="#38bdf8" stroke-width="18" opacity=".35"/><circle cx="256" cy="256" r="100" fill="none" stroke="#38bdf8" stroke-width="26"/><circle cx="256" cy="256" r="40" fill="#38bdf8"/></svg>
+<span class="t">J.A.R.V.I.S.</span>
+<button class="icon-btn" id="gear">⚙</button>
+</header>
+<div id="chat"></div>
+<button id="vmode" title="Sprachmodus">🎙️</button>
+<footer><div class="bar">
+<button class="rbtn" id="mic">🎤</button>
+<textarea id="t" rows="1" placeholder="Nachricht… (oder 🎙️ für Sprachmodus)"></textarea>
+<button class="rbtn" id="send">➤</button>
+</div></footer>
+
+<div id="backdrop"></div>
+<div id="settings">
+<h3>Einstellungen</h3>
+<div class="row"><span>🔊 Antwort vorlesen</span><div class="sw" id="sw-speak"></div></div>
+<div class="row"><span>🎙️ Immer-Sprachmodus</span><div class="sw" id="sw-voice"></div></div>
+<div class="row"><span>🔔 Weckwort „Jarvis“</span><div class="sw" id="sw-wake"></div></div>
+<div style="padding:12px 0;border-bottom:1px solid #21262d">
+<label class="lbl">🔑 Groq API-Key (kostenlos: console.groq.com)</label>
+<input class="mini" id="key" type="password" placeholder="gsk_…">
+<label class="lbl">🧠 Modell</label>
+<select id="model">
+<option value="llama-3.1-8b-instant">Llama 3.1 8B (schnell, empfohlen)</option>
+<option value="llama-3.3-70b-versatile">Llama 3.3 70B (schlauer)</option>
+<option value="openai/gpt-oss-20b">GPT-OSS 20B</option>
+</select>
+<label class="lbl">🌟 Stimme</label>
+<select id="voices"></select>
+</div>
+<button class="mini" id="clear" style="border-color:#30363d">🗑 Neuer Chat</button>
+<div class="row"><span class="s" id="info"></span></div>
+<p class="s">Freihändig wie Alexa: Sprachmodus + Weckwort an, dann z.B. „Jarvis, wie wird das Wetter?“ Auch: „Sprachmodus an“, „vorlesen aus“, „wechsle die Stimme“, „neuer Chat“.</p>
+</div>
+<script>
+const $=id=>document.getElementById(id), chat=$('chat'), t=$('t');
+const store=k=>localStorage.getItem('jarvis_'+k), save=(k,v)=>localStorage.setItem('jarvis_'+k,v);
+const NATIVE=!!window.AndroidVoice;   // native Android-Sprachbrücke vorhanden?
+let speakOn=store('speak')!=='0', voiceMode=false, wakeOn=store('wake')!=='0';
+let voices=[], voiceIdx=parseInt(store('voice')||'-1'), speaking=false, recognizing=false;
+let geo=null, history=[];
+const WAKE=/jar?v?is|jarwis|jervis|dschar?vis|charvis/i;
+
+const SYS="Du bist J.A.R.V.I.S., ein höflicher, wortkarger KI-Assistent im Stil von Iron Man. "+
+"Sprich Deutsch, nenne den Nutzer 'Sir'. Antworte kurz, präzise und hilfsbereit.";
+
+function add(cls,txt){const d=document.createElement('div');d.className='msg '+cls;
+ d.textContent=txt;chat.appendChild(d);chat.scrollTop=chat.scrollHeight;return d;}
+
+// ---------- Standort ----------
+function getGeo(){if(navigator.geolocation)navigator.geolocation.getCurrentPosition(
+ p=>{geo={lat:p.coords.latitude,lon:p.coords.longitude};},()=>{},
+ {enableHighAccuracy:false,timeout:8000,maximumAge:600000});}
+getGeo();
+
+// ---------- Stimmen (Fallback Browser-TTS) ----------
+function loadVoices(){if(!('speechSynthesis'in window))return;voices=speechSynthesis.getVoices();
+ const de=voices.filter(v=>/de/i.test(v.lang)),list=de.length?de:voices,sel=$('voices');sel.innerHTML='';
+ voices.forEach((v,i)=>{const o=document.createElement('option');o.value=i;o.textContent=v.name+' ('+v.lang+')';sel.appendChild(o);});
+ if(voiceIdx<0||!voices[voiceIdx]){const d=voices.indexOf(list[0]);voiceIdx=d>=0?d:0;}sel.value=voiceIdx;}
+if('speechSynthesis'in window){speechSynthesis.onvoiceschanged=loadVoices;loadVoices();}
+$('voices').onchange=e=>{voiceIdx=parseInt(e.target.value);save('voice',voiceIdx);speak('So klinge ich jetzt, Sir.');};
+function nextVoice(){const de=voices.map((v,i)=>[v,i]).filter(x=>/de/i.test(x[0].lang));
+ const pool=de.length?de.map(x=>x[1]):voices.map((_,i)=>i);let p=pool.indexOf(voiceIdx);
+ voiceIdx=pool[(p+1)%pool.length];save('voice',voiceIdx);$('voices').value=voiceIdx;speak('So klinge ich jetzt, Sir.');}
+
+// ---------- Sprachausgabe ----------
+function speak(txt){if(!(speakOn||voiceMode))return;
+ if(NATIVE){speaking=true;stopRec();try{AndroidVoice.speak(txt);}catch(e){speaking=false;}return;}
+ try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);
+  if(voices[voiceIdx])u.voice=voices[voiceIdx];u.lang=(voices[voiceIdx]||{}).lang||'de-DE';
+  speaking=true;stopRec();u.onend=()=>{speaking=false;if(voiceMode)startRec();};
+  speechSynthesis.speak(u);}catch(e){speaking=false;}}
+window.onTtsEnd=()=>{speaking=false;if(voiceMode)startRec();};   // native TTS-Ende
+
+// ---------- Spracherkennung ----------
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+const rec=(!NATIVE&&SR)?new SR():null;
+if(rec){rec.lang='de-DE';rec.interimResults=false;
+ rec.onresult=e=>{recognizing=false;$('mic').classList.remove('rec');onHeard(e.results[0][0].transcript);};
+ rec.onerror=()=>{recognizing=false;$('mic').classList.remove('rec');};
+ rec.onend=()=>{recognizing=false;$('mic').classList.remove('rec');if(voiceMode&&!speaking)startRec();};}
+window.onSpeechResult=txt=>{recognizing=false;$('mic').classList.remove('rec');onHeard(txt);};   // native STT
+window.onSpeechEnd=()=>{recognizing=false;$('mic').classList.remove('rec');if(voiceMode&&!speaking)startRec();};
+
+function startRec(){if(recognizing||speaking)return;
+ if(NATIVE){try{AndroidVoice.startListening();recognizing=true;}catch(e){}}
+ else if(rec){try{rec.start();recognizing=true;}catch(e){}}}
+function stopRec(){if(!recognizing)return;
+ if(NATIVE){try{AndroidVoice.stopListening();}catch(e){}}
+ else if(rec){try{rec.stop();}catch(e){}}recognizing=false;}
+$('mic').onclick=()=>{getGeo();$('mic').classList.add('rec');startRec();};
+
+function onHeard(raw){
+ if(voiceMode&&wakeOn){
+  if(!WAKE.test(raw)){if(voiceMode&&!speaking)startRec();return;}
+  let cmd=raw.replace(WAKE,'').replace(/^[\s,.!?]+|[\s,.!?]+$/g,'').trim();
+  if(!cmd){add('s','🎙️ Ja, Sir?');speak('Ja, Sir?');return;}
+  handle(cmd);
+ }else handle(raw);}
+
+// ---------- Einstellungs-Aktionen ----------
+function setSpeak(v){speakOn=v;save('speak',v?'1':'0');$('sw-speak').classList.toggle('on',v);}
+function setWake(v){wakeOn=v;save('wake',v?'1':'0');$('sw-wake').classList.toggle('on',v);}
+function setVoiceMode(v){voiceMode=v;$('sw-voice').classList.toggle('on',v);$('vmode').classList.toggle('on',v);
+ if(v){getGeo();startRec();}else stopRec();}
+
+// ---------- Sprachbefehle für Einstellungen (ohne KI) ----------
+function settingsCommand(text){const t=' '+text.toLowerCase().trim()+' ';const h=(...w)=>w.some(x=>t.includes(x));
+ if(h('vorlesen aus','nicht mehr vorlesen','sei still','ton aus')){setSpeak(false);return'Vorlesen aus, Sir.';}
+ if(h('vorlesen an','vorlesen ein','lies vor','sprich mit mir')){setSpeak(true);return'Vorlesen an, Sir.';}
+ if(h('sprachmodus an','immer zuhören','freisprech','hände frei','gesprächsmodus an','höre immer zu')){setVoiceMode(true);return'Sprachmodus aktiv. Ich höre dir zu, Sir.';}
+ if(h('sprachmodus aus','gesprächsmodus aus','nicht mehr zuhören','stopp zuhören')){setVoiceMode(false);return'Sprachmodus aus, Sir.';}
+ if(h('weckwort aus','wortaktivierung aus','immer reagieren','reagiere auf alles')){setWake(false);return'Weckwort aus. Ich reagiere jetzt auf alles, Sir.';}
+ if(h('weckwort an','wortaktivierung an','nur auf jarvis')){setWake(true);return'Weckwort an. Sag einfach Jarvis, Sir.';}
+ if(h('andere stimme','stimme wechseln','wechsle die stimme','neue stimme','stimme ändern')){nextVoice();return'Ich wechsle die Stimme, Sir.';}
+ if(h('neuer chat','chat löschen','chat leeren','verlauf löschen','neu anfangen')){chat.innerHTML='';history=[];return'Neuer Chat, Sir.';}
+ return null;}
+
+// ---------- Wetter & Standort (ohne KI, gratis) ----------
+const WMO={0:'klar',1:'überwiegend klar',2:'teils bewölkt',3:'bewölkt',45:'neblig',48:'Reifnebel',
+51:'leichter Nieselregen',53:'Nieselregen',55:'starker Nieselregen',61:'leichter Regen',63:'Regen',
+65:'starker Regen',71:'leichter Schneefall',73:'Schneefall',75:'starker Schneefall',80:'Regenschauer',
+81:'kräftige Regenschauer',82:'heftige Regenschauer',95:'Gewitter',96:'Gewitter mit Hagel',99:'schweres Gewitter'};
+async function reverseCity(lat,lon){try{const r=await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude='+lat+'&longitude='+lon+'&localityLanguage=de');
+ const d=await r.json();return d.city||d.locality||d.principalSubdivision||'';}catch(e){return'';}}
+async function weatherReply(lat,lon){
+ const r=await fetch('https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+
+  '&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m'+
+  '&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=1');
+ const d=await r.json(),c=d.current||{},day=d.daily||{},city=await reverseCity(lat,lon);
+ const where=city?('in '+city):'an deinem Standort',R=x=>Math.round(x),f=k=>(day[k]||[])[0];
+ let p=['Aktuell '+where+': '+(WMO[c.weather_code]||'wechselhaft')+', '+R(c.temperature_2m)+'°C (gefühlt '+R(c.apparent_temperature)+'°C).'];
+ if(f('temperature_2m_min')!=null)p.push('Heute '+R(f('temperature_2m_min'))+'° bis '+R(f('temperature_2m_max'))+'°C.');
+ if(f('precipitation_probability_max')!=null)p.push('Regenwahrscheinlichkeit '+f('precipitation_probability_max')+'%.');
+ p.push('Wind '+R(c.wind_speed_10m)+' km/h.');return p.join(' ');}
+function isWeather(x){x=' '+x.toLowerCase()+' ';return['wetter','regnet','regnen','schnee','temperatur','wie warm','wie kalt','wie viel grad','wieviel grad'].some(w=>x.includes(w));}
+function isLocation(x){x=' '+x.toLowerCase()+' ';return['wo bin ich','mein standort','welcher ort','in welcher stadt'].some(w=>x.includes(w));}
+
+// ---------- KI-Aufruf (Groq direkt) ----------
+async function callGroq(text){
+ const key=(store('key')||'').trim();
+ if(!key)return'Bitte trage zuerst deinen kostenlosen Groq-API-Key in den Einstellungen (⚙) ein, Sir. Hol ihn dir gratis auf console.groq.com.';
+ history.push({role:'user',content:text});
+ const model=store('model')||'llama-3.1-8b-instant';
+ try{const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',
+  headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},
+  body:JSON.stringify({model,max_tokens:1024,messages:[{role:'system',content:SYS}].concat(history.slice(-12))})});
+  if(!r.ok){const e=await r.text();return'Fehler von Groq ('+r.status+'): '+e.slice(0,200);}
+  const d=await r.json(),msg=((d.choices&&d.choices[0].message.content)||'').trim();
+  history.push({role:'assistant',content:msg});return msg||'(keine Antwort)';}
+ catch(e){return'Netzwerkfehler: '+e;}}
+
+// ---------- Hauptablauf ----------
+async function handle(txt){txt=(txt||'').trim();if(!txt)return;add('u',txt);
+ const sc=settingsCommand(txt);if(sc){add('j',sc);speak(sc);return;}   // Einstellungs-Sprachbefehl?
+ const d=add('j','…');
+ try{
+  if(isWeather(txt)){if(!geo){d.textContent='Ich brauche dafür deinen Standort, Sir. Bitte Standort erlauben.';speak(d.textContent);return;}
+   d.textContent=await weatherReply(geo.lat,geo.lon);speak(d.textContent);return;}
+  if(isLocation(txt)){if(!geo){d.textContent='Ich kenne deinen Standort noch nicht, Sir.';speak(d.textContent);return;}
+   const city=await reverseCity(geo.lat,geo.lon);
+   d.textContent=city?('Du befindest dich in '+city+', Sir.'):('Deine Koordinaten: '+geo.lat.toFixed(4)+', '+geo.lon.toFixed(4)+', Sir.');
+   speak(d.textContent);return;}
+  const reply=await callGroq(txt);d.textContent=reply;speak(reply);
+ }catch(e){d.textContent='Fehler: '+e;}}
+
+// ---------- UI-Verdrahtung ----------
+$('send').onclick=()=>{const v=t.value.trim();if(v){t.value='';t.style.height='auto';handle(v);}};
+t.addEventListener('input',()=>{t.style.height='auto';t.style.height=Math.min(t.scrollHeight,120)+'px';});
+t.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('send').click();}});
+$('vmode').onclick=()=>setVoiceMode(!voiceMode);
+function openSettings(o){$('settings').classList.toggle('open',o);$('backdrop').classList.toggle('open',o);}
+$('gear').onclick=()=>openSettings(true);$('backdrop').onclick=()=>openSettings(false);
+$('sw-speak').onclick=()=>setSpeak(!speakOn);
+$('sw-voice').onclick=()=>setVoiceMode(!voiceMode);
+$('sw-wake').onclick=()=>setWake(!wakeOn);
+$('clear').onclick=()=>{chat.innerHTML='';history=[];openSettings(false);};
+$('key').value=store('key')||'';$('key').oninput=e=>save('key',e.target.value);
+$('model').value=store('model')||'llama-3.1-8b-instant';$('model').onchange=e=>save('model',e.target.value);
+setSpeak(speakOn);setWake(wakeOn);
+$('info').textContent=(NATIVE?'Android-App':'Browser')+' · Groq';
+add('s','Systeme online. Guten Tag, Sir.');
+</script></body></html>
