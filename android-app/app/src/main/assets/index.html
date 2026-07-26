@@ -248,7 +248,7 @@ label.lbl{font-size:12px;color:var(--dim);display:block;margin-top:10px;letter-s
 <select id="theme"></select>
 </div>
 <div style="padding:12px 0;border-bottom:1px solid #0f2233">
-<div class="row" style="padding-top:0"><span>&#129504; Auto-Modell (w&#228;hlt selbst &amp; weicht bei Limits aus)</span><div class="sw" id="sw-auto"></div></div>
+<div class="row" style="padding-top:0"><span>&#129504; Auto-Modell &#8211; w&#228;hlt selbst, nimmt bei Programmier-Aufgaben ein Code-Modell und weicht bei Limits aus</span><div class="sw" id="sw-auto"></div></div>
 <label class="lbl">KI-Anbieter (viele kostenlos)</label>
 <select id="provider"></select>
 <label class="lbl" id="keylbl">API-Key</label>
@@ -307,7 +307,7 @@ border-radius:10px;padding:10px;font-size:10px;line-height:1.45;white-space:pre-
 </div>
 
 <script>
-const APP_VERSION='1.7';
+const APP_VERSION='1.8';
 // ============================================================
 //  DIAGNOSE – Protokoll, Absturz-Erfassung, Selbst-Update
 // ============================================================
@@ -405,9 +405,28 @@ const SYS_BASE="Du bist J.A.R.V.I.S., ein höflicher, wortkarger KI-Assistent im
 "[[appinfo]] – Version und Herkunft der Oberfläche\n"+
 "Wenn der Meister von einem Fehler berichtet, nutze [[diagnose]] und bitte ihn, "+
 "den Bericht dem Entwickler zu zeigen.\n\n"+
-"Nutze diese Befehle aktiv, wenn der Meister etwas verlangt, das sie erfüllen. "+
-"Bestätige kurz und hänge den Befehl an. "+
-"Behaupte niemals, du könntest die Oberfläche oder das Gerät nicht steuern – du kannst es mit diesen Befehlen.";
+"REGELN FÜR BEFEHLE – halte dich strikt daran:\n"+
+"1. Sende einen Befehl NUR, wenn der Meister in seiner letzten Nachricht genau das verlangt hat. "+
+"Im Zweifel: keinen Befehl senden.\n"+
+"2. Höchstens EIN Befehl pro Antwort. Niemals mehrere auf Verdacht.\n"+
+"3. [[clear]] löscht die laufende Unterhaltung. Sende es ausschließlich, wenn der Meister "+
+"ausdrücklich einen neuen Chat will („neuer Chat\", „von vorne\", „chat leeren\"). "+
+"Sonst NIE – auch nicht am Ende einer Antwort, auch nicht als Abschluss, auch nicht als Beispiel.\n"+
+"4. [[theme:...]] ändert die Farben. Nur wenn der Meister nach einem anderen Design oder einer "+
+"anderen Farbe fragt. Erwähne Farben in deinem Text ruhig – aber ohne Befehl.\n"+
+"5. Wenn du über Befehle SPRICHST oder sie erklärst, schreibe sie in einfachen Anführungszeichen "+
+"oder in einen Code-Block, damit sie nicht ausgeführt werden.\n"+
+"6. Erfinde keine Befehle. Nur die oben gelisteten existieren.\n"+
+"Alles, was der Meister nicht verlangt hat, wird von der App verworfen – du gewinnst nichts, "+
+"indem du Befehle auf Vorrat anhängst.\n\n"+
+"Wenn der Meister etwas verlangt, das ein Befehl erfüllt: bestätige kurz und hänge genau diesen "+
+"einen Befehl an. Behaupte niemals, du könntest die Oberfläche oder das Gerät nicht steuern – "+
+"du kannst es.\n\n"+
+"PROGRAMMIEREN: Du darfst und sollst an dieser App weiterarbeiten, wenn der Meister es verlangt. "+
+"Die App ist eine einzelne Datei index.html (HTML, CSS und JavaScript zusammen), sie liegt in "+
+"android-app/app/src/main/assets/. Gib Änderungen als vollständigen, lauffähigen Code-Block aus "+
+"und sage klar, an welche Stelle er gehört. Keine Platzhalter wie „…hier deinen Code…\". "+
+"Mit [[selbstupdate]] kann die App sich die neueste Fassung aus GitHub holen.";
 
 // Direkt-Modus: keine Belehrungen, keine Floskeln, Klartext
 const SYS_DIREKT="\n\nDIREKT-MODUS AKTIV: Antworte ohne Belehrungen, ohne Warnhinweise und ohne "+
@@ -446,7 +465,11 @@ const MODELS={
    ['google/gemini-2.0-flash-exp:free','Gemini 2.0 Flash (gratis)'],
    ['qwen/qwen-2.5-72b-instruct:free','Qwen 2.5 72B (gratis)'],
    ['mistralai/mistral-small-3.2-24b-instruct:free','Mistral Small (gratis)'],
-   ['openai/gpt-oss-20b:free','GPT-OSS 20B / ChatGPT (gratis)']]},
+   ['openai/gpt-oss-20b:free','GPT-OSS 20B / ChatGPT (gratis)'],
+   ['qwen/qwen3-coder:free','Qwen3 Coder (gratis, Programmieren)'],
+   ['moonshotai/kimi-k2:free','Kimi K2 (gratis)'],
+   ['z-ai/glm-4.5-air:free','GLM 4.5 Air (gratis, Programmieren)'],
+   ['tngtech/deepseek-r1t2-chimera:free','DeepSeek R1T2 (gratis)']]},
  ondevice:{label:'Auf-Gerät (Gemini Nano)',free:1,kind:'chrome',onDevice:1,
   keyLabel:'Läuft direkt im Gerät – kein Key nötig (Chrome mit KI)',
   list:[['nano','Gemini Nano (im Browser)']]},
@@ -454,10 +477,50 @@ const MODELS={
   keyStore:'olh',modelStore:'olm',def:'llama3.2',keyPh:'http://localhost:11434',
   keyLabel:'Ollama-Adresse (Standard: http://localhost:11434)',
   list:[['llama3.2','Llama 3.2'],['llama3.1','Llama 3.1'],['qwen2.5','Qwen 2.5'],['gemma2','Gemma 2'],['phi3','Phi-3']]},
- openai:{label:'OpenAI (ChatGPT, kostenpflichtig)',free:0,kind:'openai',base:'https://api.openai.com/v1',
-  keyStore:'oak',modelStore:'oam',def:'gpt-4o-mini',keyPh:'sk-...',
-  keyLabel:'OpenAI API-Key (kostenpflichtig: platform.openai.com)',
-  list:[['gpt-4o-mini','GPT-4o mini'],['gpt-4o','GPT-4o'],['o4-mini','o4-mini']]}
+ cerebras:{label:'Cerebras',free:1,coder:1,kind:'openai',base:'https://api.cerebras.ai/v1',
+  keyStore:'cbk',modelStore:'cbm',def:'qwen-3-coder-480b',keyPh:'csk-...',
+  keyLabel:'Cerebras API-Key (gratis: cloud.cerebras.ai)',
+  list:[['qwen-3-coder-480b','Qwen3 Coder 480B (Programmieren, sehr stark)'],
+   ['qwen-3-235b-a22b-instruct-2507','Qwen3 235B'],
+   ['gpt-oss-120b','GPT-OSS 120B'],
+   ['llama-3.3-70b','Llama 3.3 70B'],
+   ['llama3.1-8b','Llama 3.1 8B (sehr schnell)']]},
+ mistral:{label:'Mistral',free:1,coder:1,kind:'openai',base:'https://api.mistral.ai/v1',
+  keyStore:'mik',modelStore:'mim',def:'codestral-latest',keyPh:'...',
+  keyLabel:'Mistral API-Key (gratis: console.mistral.ai/api-keys)',
+  list:[['codestral-latest','Codestral (Programmieren)'],
+   ['devstral-medium-latest','Devstral Medium (Programmieren)'],
+   ['mistral-large-latest','Mistral Large'],
+   ['mistral-medium-latest','Mistral Medium'],
+   ['mistral-small-latest','Mistral Small (schnell)'],
+   ['magistral-medium-latest','Magistral (Denkmodell)']]},
+ github:{label:'GitHub Models (ChatGPT gratis)',free:1,coder:1,kind:'openai',
+  base:'https://models.github.ai/inference',
+  keyStore:'ghk',modelStore:'ghm',def:'openai/gpt-4.1',keyPh:'github_pat_... / ghp_...',
+  keyLabel:'GitHub-Token (gratis; derselbe wie beim Sync, Recht „models" genügt)',
+  list:[['openai/gpt-4.1','GPT-4.1 (ChatGPT)'],
+   ['openai/gpt-4.1-mini','GPT-4.1 mini (schnell)'],
+   ['openai/o4-mini','o4-mini (Denkmodell)'],
+   ['deepseek/DeepSeek-V3-0324','DeepSeek V3 (Programmieren)'],
+   ['deepseek/DeepSeek-R1','DeepSeek R1 (Denkmodell)'],
+   ['meta/Llama-4-Maverick-17B-128E-Instruct-FP8','Llama 4 Maverick'],
+   ['mistral-ai/Codestral-2501','Codestral (Programmieren)']]},
+ nvidia:{label:'NVIDIA NIM',free:1,coder:1,kind:'openai',base:'https://integrate.api.nvidia.com/v1',
+  keyStore:'nvk',modelStore:'nvm',def:'qwen/qwen3-coder-480b-a35b-instruct',keyPh:'nvapi-...',
+  keyLabel:'NVIDIA API-Key (gratis: build.nvidia.com)',
+  list:[['qwen/qwen3-coder-480b-a35b-instruct','Qwen3 Coder 480B (Programmieren)'],
+   ['deepseek-ai/deepseek-r1','DeepSeek R1 (Denkmodell)'],
+   ['moonshotai/kimi-k2-instruct','Kimi K2'],
+   ['meta/llama-3.3-70b-instruct','Llama 3.3 70B'],
+   ['qwen/qwen3-235b-a22b','Qwen3 235B']]},
+ hf:{label:'Hugging Face',free:1,kind:'openai',base:'https://router.huggingface.co/v1',
+  keyStore:'hfk',modelStore:'hfm',def:'Qwen/Qwen2.5-Coder-32B-Instruct',keyPh:'hf_...',
+  keyLabel:'Hugging-Face-Token (gratis: huggingface.co/settings/tokens)',
+  list:[['Qwen/Qwen2.5-Coder-32B-Instruct','Qwen2.5 Coder 32B (Programmieren)'],
+   ['Qwen/Qwen3-Coder-480B-A35B-Instruct','Qwen3 Coder 480B (Programmieren)'],
+   ['deepseek-ai/DeepSeek-V3-0324','DeepSeek V3'],
+   ['meta-llama/Llama-3.3-70B-Instruct','Llama 3.3 70B'],
+   ['mistralai/Mistral-Small-3.2-24B-Instruct-2506','Mistral Small']]}
 };
 let provider=MODELS[store('provider')]?store('provider'):'groq';
 
@@ -763,15 +826,19 @@ function settingsCommand(text){const q=' '+text.toLowerCase().trim()+' ',h=(...w
 let chromeSession=null, lastUsed='';
 
 /** Ein einzelner Aufruf. Liefert {ok,text} oder {ok:false,status,msg}. */
-async function rawCall(pv,model,text){
+async function rawCall(pv,model,text,tier){
  const c=MODELS[pv], msgs=history.slice(-12);
+ const codeMode=tier==='code';
+ const budget=codeMode?8192:1024;          // Code braucht deutlich mehr Platz
+ const sys=SYSnow()+(codeMode?("\n\nDer Meister arbeitet gerade am Code. Antworte knapp im Text, "+
+  "aber gib den Code vollstaendig und lauffaehig in einem Code-Block aus. Kuerze nichts ab."):'');
  try{
   if(c.kind==='chrome'){
    if(!('LanguageModel'in self))return{ok:false,status:0,msg:'Auf-Geraet-KI hier nicht verfuegbar'};
    if(!chromeSession){const av=await self.LanguageModel.availability();
     if(av==='unavailable')return{ok:false,status:0,msg:'Auf-Geraet-KI nicht verfuegbar'};
     if(av!=='available')add('s','Lade Auf-Gerät-KI herunter … (einmalig)');
-    chromeSession=await self.LanguageModel.create({initialPrompts:[{role:'system',content:SYSnow()}]});}
+    chromeSession=await self.LanguageModel.create({initialPrompts:[{role:'system',content:sys}]});}
    const out=await chromeSession.prompt(text);
    return{ok:true,text:(out||'').trim()};}
 
@@ -779,47 +846,65 @@ async function rawCall(pv,model,text){
    const key=(store('gk')||'').trim();
    if(!key)return{ok:false,status:401,msg:'kein Gemini-Key'};
    const contents=msgs.map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]}));
-   const gen={maxOutputTokens:2048};
+   const gen={maxOutputTokens:codeMode?8192:2048};
    if(/2\.5|flash-lite/.test(model))gen.thinkingConfig={thinkingBudget:0};
    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent',
     {method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},
-     body:JSON.stringify({system_instruction:{parts:[{text:SYSnow()}]},contents:contents,generationConfig:gen})});
+     body:JSON.stringify({system_instruction:{parts:[{text:sys}]},contents:contents,generationConfig:gen})});
    if(!r.ok)return{ok:false,status:r.status,msg:(await r.text()).slice(0,160)};
    const d=await r.json(),cand=(d.candidates&&d.candidates[0])||{};
    return{ok:true,text:(((cand.content&&cand.content.parts)||[]).map(p=>p.text||'').join('')).trim()};}
 
-  // OpenAI-kompatibel: Groq, OpenRouter, OpenAI, Ollama
+  // OpenAI-kompatibel: Groq, OpenRouter, Cerebras, Mistral, GitHub, NVIDIA, HF, Ollama
   let base=c.base,key=(c.keyStore?store(c.keyStore):'')||'';
   if(c.kind==='ollama'){base=((store(c.keyStore)||'http://localhost:11434').replace(/\/+$/,''))+'/v1';key='ollama';}
   else if(!key)return{ok:false,status:401,msg:'kein '+c.label+'-Key'};
   const extra=pv==='openrouter'?{'HTTP-Referer':'https://jarvis.app','X-Title':'JARVIS'}:{};
   const r=await fetch(base+'/chat/completions',{method:'POST',
    headers:Object.assign({'Content-Type':'application/json','Authorization':'Bearer '+key},extra),
-   body:JSON.stringify({model:model,max_tokens:1024,messages:[{role:'system',content:SYSnow()}].concat(msgs)})});
+   body:JSON.stringify({model:model,max_tokens:budget,messages:[{role:'system',content:sys}].concat(msgs)})});
   if(!r.ok)return{ok:false,status:r.status,msg:(await r.text()).slice(0,160)};
   const d=await r.json();
   return{ok:true,text:((d.choices&&d.choices[0]&&d.choices[0].message.content)||'').trim()};}
  catch(e){return{ok:false,status:0,msg:String(e)};}}
 
 // ---------- Wie anspruchsvoll ist die Aufgabe? ----------
+const CODE_RE=/(programm|program|code|kodier|script|skript|funktion|klasse|methode|variable|schleife|regex|regul(ä|ae)rer ausdruck|compil|kompilier|debug|bug|fehlermeldung|stacktrace|exception|refactor|umbau|unit.?test|testfall|api|endpoint|datenbank|sql|query|html|css|javascript|typescript|python|java\b|kotlin|swift|rust|golang|\bgo\b|c\+\+|c#|php|bash|shell|json|yaml|xml|git\b|commit|branch|merge|pull.?request|gradle|npm|pip|docker|server|framework|bibliothek|library|schreib.*(funktion|klasse|programm|skript|app)|baue?.*(funktion|feature|app|oberfl(ä|ae)che)|implementier|erweiter.*(app|oberfl(ä|ae)che|funktion)|verbesser.*(app|code|oberfl(ä|ae)che)|repariere?.*(app|code|fehler))/;
+
 function taskTier(t){
  const q=t.toLowerCase(),len=t.length;
- const schwer=/(program|code|script|funktion|algorith|debug|fehler such|analysier|beweis|herleit|architekt|refactor|konzept|strategie|vor.*und.*nachteil|schreib.*(aufsatz|text|geschichte|artikel|brief)|übersetz|rechne|mathe|gleichung|integral|statistik|plan(e|ung)|vergleich)/;
+ const schwer=/(algorith|analysier|beweis|herleit|architekt|konzept|strategie|vor.*und.*nachteil|schreib.*(aufsatz|text|geschichte|artikel|brief|gedicht|lied)|erz(ä|ae)hl.*(geschichte|m(ä|ae)rchen|witz)|gedicht|(ü|ue)bersetz|rechne|mathe|gleichung|integral|statistik|plan(e|ung)|vergleich)/;
  const leicht=/^(hi|hallo|hey|danke|ok|okay|guten (tag|morgen|abend)|wie geht|was machst|servus|moin|tschüss|bye|ja|nein)\b/;
  if(leicht.test(q)&&len<40)return'klein';
+ if(CODE_RE.test(q))return'code';                       // Programmieren hat eigene Leiter
  if(schwer.test(q)||len>420||(t.match(/\?/g)||[]).length>2)return'gross';
  if(len>140)return'mittel';
  return'klein';}
 
-/** Modell-Leitern je Schwierigkeit – von bevorzugt zu Ausweich. */
+/** Modell-Leitern je Schwierigkeit – von bevorzugt zu Ausweich. Alle gratis. */
 const TIERS={
- klein:[['groq','llama-3.1-8b-instant'],['gemini','gemini-flash-lite-latest'],
+ klein:[['groq','llama-3.1-8b-instant'],['cerebras','llama3.1-8b'],
+        ['gemini','gemini-flash-lite-latest'],['mistral','mistral-small-latest'],
         ['openrouter','meta-llama/llama-3.3-70b-instruct:free'],['ondevice','nano']],
- mittel:[['groq','llama-3.3-70b-versatile'],['gemini','gemini-flash-latest'],
+ mittel:[['groq','llama-3.3-70b-versatile'],['cerebras','llama-3.3-70b'],
+         ['gemini','gemini-flash-latest'],['github','openai/gpt-4.1-mini'],
+         ['mistral','mistral-medium-latest'],
          ['openrouter','deepseek/deepseek-chat-v3-0324:free'],['groq','openai/gpt-oss-120b']],
- gross:[['gemini','gemini-pro-latest'],['openrouter','deepseek/deepseek-r1:free'],
-        ['groq','openai/gpt-oss-120b'],['groq','llama-3.3-70b-versatile'],
-        ['openrouter','qwen/qwen-2.5-72b-instruct:free']]};
+ // Programmieren: die besten kostenlosen Code-Modelle zuerst
+ code:[['cerebras','qwen-3-coder-480b'],['mistral','codestral-latest'],
+       ['nvidia','qwen/qwen3-coder-480b-a35b-instruct'],
+       ['github','openai/gpt-4.1'],['mistral','devstral-medium-latest'],
+       ['hf','Qwen/Qwen2.5-Coder-32B-Instruct'],
+       ['github','deepseek/DeepSeek-V3-0324'],
+       ['cerebras','qwen-3-235b-a22b-instruct-2507'],
+       ['gemini','gemini-pro-latest'],['groq','openai/gpt-oss-120b'],
+       ['openrouter','qwen/qwen3-coder:free'],
+       ['openrouter','deepseek/deepseek-chat-v3-0324:free']],
+ gross:[['gemini','gemini-pro-latest'],['github','openai/o4-mini'],
+        ['cerebras','qwen-3-235b-a22b-instruct-2507'],
+        ['nvidia','deepseek-ai/deepseek-r1'],['mistral','magistral-medium-latest'],
+        ['openrouter','deepseek/deepseek-r1:free'],
+        ['groq','openai/gpt-oss-120b'],['groq','llama-3.3-70b-versatile']]};
 
 let autoOn=store('auto')!=='0';
 function setAuto(v){autoOn=v;save('auto',v?'1':'0');if($('sw-auto'))$('sw-auto').classList.toggle('on',v);}
@@ -831,15 +916,20 @@ function hasKey(pv){const c=MODELS[pv];return c&&(!c.keyStore||!!store(c.keyStor
 
 /** Waehlt das Modell nach Schwierigkeit und weicht bei Limits automatisch aus. */
 async function callLLM(text){
- let plan;
+ let plan,tierUsed='';
  if(autoOn){
-  const tier=taskTier(text);
+  const tier=taskTier(text);tierUsed=tier;
   plan=TIERS[tier].filter(x=>MODELS[x[0]]&&hasKey(x[0]));
-  const pref=plan.findIndex(x=>x[0]===provider);
-  if(pref>0)plan.unshift(plan.splice(pref,1)[0]);
+  // Bei Programmieraufgaben zaehlt die Code-Leiter, nicht der eingestellte Anbieter
+  if(tier!=='code'){const pref=plan.findIndex(x=>x[0]===provider);
+   if(pref>0)plan.unshift(plan.splice(pref,1)[0]);}
   logPush('AUTO',['Aufgabe '+tier+' -> '+plan.map(x=>x[0]+'/'+x[1]).join(' , ')]);
+  if(tier==='code'&&!plan.length)
+   return'Für Programmieraufgaben brauche ich einen Key von Cerebras, Mistral, GitHub Models, '+
+    'NVIDIA oder Hugging Face, Meister – alle kostenlos. Trage einen davon in den Einstellungen ein.';
  }else{
   const c=MODELS[provider];
+  tierUsed=taskTier(text);
   plan=[[provider,(c.modelStore&&store(c.modelStore))||c.def||'nano']];}
  if(!plan.length)return'Bitte trage zuerst einen API-Key in den Einstellungen ein, Meister.';
 
@@ -847,10 +937,10 @@ async function callLLM(text){
  for(let i=0;i<plan.length;i++){
   const pv=plan[i][0],model=plan[i][1];
   if(isCooling(pv)){logPush('AUTO',[pv+' uebersprungen (pausiert)']);continue;}
-  const res=await rawCall(pv,model,text);
+  const res=await rawCall(pv,model,text,tierUsed);
   if(res.ok&&res.text){
    lastUsed=MODELS[pv].label+' · '+model;
-   if(autoOn)add('s','↪ '+lastUsed);
+   if(autoOn)add('s','↪ '+lastUsed+(tierUsed==='code'?'  (Programmiermodell)':''));
    return res.text;}
   lastMsg=(res.msg||'').slice(0,140);
   logPush('AUSWEICHEN',[pv+'/'+model+' -> '+res.status+' '+lastMsg]);
@@ -1049,7 +1139,7 @@ async function handle(txt){txt=(txt||'').trim();
   history.push({role:'user',content:txt});
   const reply=await callLLM(txt);
   if(reply)history.push({role:'assistant',content:reply});
-  const clean=await runAICommands(reply);   // Jarvis steuert Oberfläche + Gerät selbst
+  const clean=await runAICommands(reply,txt);   // Jarvis steuert Oberfläche + Gerät selbst
   if(clean){d.textContent=clean;speak(clean);}else d.remove();
   saveCurrent();syncSoon();
  }catch(e){d.textContent='Fehler: '+e;logPush('ANTWORT-FEHLER',[String(e)]);}}
@@ -1160,7 +1250,8 @@ function showHist(o){$('histpanel').classList.toggle('open',o);$('backdrop').cla
 //  KONTO & SYNC – Chats und Einstellungen zwischen Geräten
 //  Ablage: ein privates GitHub-Gist (kostenlos, dein Konto)
 // ============================================================
-const SYNC_KEYS=['gqk','gk','ork','oak','olh','gqm','gm','orm','oam','olm',
+const SYNC_KEYS=['gqk','gk','ork','olh','cbk','mik','ghk','nvk','hfk',
+ 'gqm','gm','orm','olm','cbm','mim','ghm','nvm','hfm',
  'theme','voice','pitch','rate','speak','wake','auto','provider','dev','updurl',
  'jvon','jvname','direkt'];
 function syncCfg(){const o={};SYNC_KEYS.forEach(k=>{const v=store(k);if(v!==null)o[k]=v;});return o;}
@@ -1355,11 +1446,58 @@ async function deviceCmd(cmd,val){
   default: return null;}}
  catch(e){return'Gerätefehler ('+cmd+'): '+(e.name||e);}}
 
+// ============================================================
+//  BEFEHLSSCHLEUSE
+//  Modelle hängen gern Befehle an, die niemand verlangt hat
+//  (vor allem [[clear]] und Farbwechsel). Alles mit sichtbarer
+//  oder unumkehrbarer Wirkung braucht darum einen erkennbaren
+//  Wunsch in der letzten Nachricht des Meisters.
+// ============================================================
+const GATE={
+ theme:/design|farb|theme|aussehen|oberfläch|look|\brot\b|\bblau\b|gold|grün|gruen|violett|lila|\beis\b|arc.?reaktor|styl/,
+ clear:/neue[rn]?\s+(chat|unterhaltung|gespräch)|chat\s+(leer|lösch|neu|zurück)|von vorne|neu anfangen|alles vergessen|vergiss|\bclear\b|zurücksetzen/,
+ verlauf:/verlauf|historie|alte[nr]?\s+(chat|unterhaltung|gespräch)|früher|letzte[nr]?\s+chat/,
+ provider:/anbieter|provider|wechsel|umschalt|umstell|\bnutze\b|groq|gemini|openrouter|cerebras|mistral|nvidia|hugging|github|ollama|auf.?gerät|nano/,
+ speak:/vorles|sprech|sprich|still|ruhe|\bton\b|laut|stumm|rede/,
+ voice:/sprachmodus|zuhör|freisprech|hände frei|mikrofon|\bmikro\b/,
+ auto:/auto.?modell|automatisch|modellwahl|modell.*selbst|selbst.*modell/,
+ direkt:/direkt.?modus|klartext|kein geschwätz|ohne filter|derb|ungefiltert/,
+ sync:/sync|abgleich|synchron|hochlad|anderes gerät|ipad|handy|konto/,
+ neustart:/neu.?start|neu laden|reload|starte.*neu/,
+ selbstupdate:/update|aktualisier|neueste (version|fassung)|neue version/,
+ anrufen:/anruf|\bruf\b|rufe|telefon|wähl/,
+ sms:/\bsms\b|textnachricht|nachricht\s+(an|senden|schreib)|schreib.*nachricht/,
+ loeschen:/lösch|entfern|weg damit|räum/,
+ schreiben:/schreib|speicher|ableg|datei\s+anleg|notier|merk/,
+ befehl:/befehl|shell|terminal|kommando|führe.*aus|\bbash\b/,
+ vollzugriff:/zugriff|rechte|erlaub|berechtigung/,
+ foto:/foto|selfie|kamera|fotografier|aufnehm|knips/,
+ sehen:/sieh|schau|siehst|kamera|erkenn|was ist das/,
+ taschenlampe:/licht|lampe|taschenlampe|leucht|dunkel/,
+ starte:/starte|öffne|\bapp\b|zeig/,
+ oeffnen:/öffne|starte|zeig|webseite|browser|\blink\b|\bseite\b|internet/
+};
+/** Darf dieser Befehl laufen? Ungelistete Befehle sind harmlos und immer erlaubt. */
+function commandAllowed(cmd,userText){
+ const re=GATE[cmd];if(!re)return true;
+ return re.test(' '+String(userText||'').toLowerCase()+' ');}
+
+/** Code-Blöcke ausblenden, damit Befehle darin nicht ausgeführt werden. */
+function maskCode(s){const keep=[];
+ const out=String(s).replace(/```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`/g,
+  m=>{keep.push(m);return '@@CODE'+(keep.length-1)+'@@';});
+ return{out:out,keep:keep};}
+function unmaskCode(s,keep){return s.replace(/@@CODE(\d+)@@/g,(m,i)=>keep[+i]);}
+
 // ---------- Befehle ausführen, die Jarvis selbst in seiner Antwort sendet ----------
-async function runAICommands(text){let did=[],jobs=[];
- const clean=String(text).replace(/\[\[\s*([a-zA-ZäöüÄÖÜ_]+)\s*:?\s*([^\]]*)\]\]/g,(m,cmd,val)=>{
-  cmd=cmd.toLowerCase().replace('ö','oe').replace('ü','ue');val=(val||'').trim();
+async function runAICommands(text,userText){let did=[],jobs=[],weg=[],n=0;
+ const mk=maskCode(text);
+ const clean=unmaskCode(mk.out.replace(/\[\[\s*([a-zA-ZäöüÄÖÜ_]+)\s*:?\s*([^\]]*)\]\]/g,(m,cmd,val)=>{
+  cmd=cmd.toLowerCase().replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ä/g,'ae');
+  val=(val||'').trim();
   const lv=val.toLowerCase();
+  if(++n>2){weg.push(cmd+' (zu viele)');return'';}
+  if(!commandAllowed(cmd,userText)){weg.push(cmd+(val?':'+val:''));return'';}
   if(cmd==='theme'){if(applyTheme(lv))did.push('Design: '+THEMES[lv].n);}
   else if(cmd==='speak'){setSpeak(lv==='an'||lv==='on');did.push('Vorlesen '+lv);}
   else if(cmd==='voice'){setVoiceMode(lv==='an'||lv==='on');did.push('Sprachmodus '+lv);}
@@ -1370,7 +1508,8 @@ async function runAICommands(text){let did=[],jobs=[];
   else if(cmd==='direkt'){setDirekt(lv==='an'||lv==='on');did.push('Direkt-Modus '+lv);}
   else if(cmd==='sync'){jobs.push(['sync','']);}
   else{jobs.push([cmd,val]);}       // Gerätebefehle laufen asynchron
-  return '';}).trim();
+  return '';}),mk.keep).trim();
+ if(weg.length)logPush('BEFEHL-VERWORFEN',[weg.join(' , ')+' – vom Meister nicht verlangt']);
  if(did.length)setTimeout(()=>add('s','⚙ '+did.join(' · ')),60);
  for(const [c,v] of jobs){const res=await deviceCmd(c,v);
   if(res!==null&&res!==undefined)add('j',res);}
@@ -1416,7 +1555,8 @@ function refreshProviderUI(){const c=MODELS[provider];
  const want=c.modelStore?(store(c.modelStore)||c.def):c.list[0][0];
  sel.value=want;if(!sel.value&&sel.options.length)sel.selectedIndex=0;
  $('provider').value=provider;
- $('phint').textContent=c.onDevice?'Läuft direkt auf deinem Gerät, komplett offline und privat.':(c.free?'Kostenlos – nur ein Gratis-Key nötig.':'Kostenpflichtig – eigener Bezahl-Key nötig.');
+ $('phint').textContent=c.onDevice?'Läuft direkt auf deinem Gerät, komplett offline und privat.'
+  :(c.coder?'Kostenlos – und stark beim Programmieren.':'Kostenlos – nur ein Gratis-Key nötig.');
  if($('info'))$('info').textContent=(NATIVE?'Android-App':'Browser')+' · '+c.label;}
 function setProvider(p){if(!MODELS[p])return;provider=p;save('provider',p);refreshProviderUI();}
 
@@ -1436,13 +1576,14 @@ async function fetchModels(){const c=MODELS[provider],hint=$('phint');
     .map(m=>(m.name||'').replace(/^models\//,''))
     .filter(n=>n&&!/embedding|aqa|imagen|veo|tts/i.test(n));
   }else{
-   let base=c.base;
+   let base=c.base,url='';
    if(c.kind==='ollama')base=((store(c.keyStore)||'http://localhost:11434').replace(/\/+$/,''))+'/v1';
    else if(!key){hint.textContent='Bitte zuerst den Key eintragen.';return;}
-   const r=await fetch(base+'/models',{headers:key?{'Authorization':'Bearer '+key}:{}});
+   url=provider==='github'?'https://models.github.ai/catalog/models':base+'/models';
+   const r=await fetch(url,{headers:key?{'Authorization':'Bearer '+key}:{}});
    if(!r.ok){hint.textContent='Fehler beim Laden ('+r.status+').';return;}
    const d=await r.json();
-   ids=(d.data||d.models||[]).map(m=>m.id||m.name).filter(Boolean);
+   ids=(Array.isArray(d)?d:(d.data||d.models||[])).map(m=>m.id||m.name).filter(Boolean);
    if(provider==='openrouter')ids=ids.filter(i=>/:free$/.test(i)).concat(ids.filter(i=>!/:free$/.test(i)));
   }
   if(!ids.length){hint.textContent='Keine Modelle gefunden.';return;}
