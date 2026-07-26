@@ -94,6 +94,26 @@ border-radius:22px;padding:11px 20px;font-size:15px;letter-spacing:1px;font-weig
 .u{align-self:flex-end;background:linear-gradient(135deg,var(--deep1),var(--deep2));border:1px solid var(--line2);border-radius:14px 14px 5px 14px}
 .j{align-self:flex-start;background:rgba(9,16,28,.85);border:1px solid var(--line);border-radius:14px 14px 14px 5px;box-shadow:0 0 0 1px rgba(var(--rgb),.05)}
 .s{align-self:center;color:var(--dim);font-size:12px;font-style:italic;text-align:center}
+.imsg{max-width:min(88%,430px);border-radius:14px;border:1px solid var(--line);cursor:zoom-in;
+display:block;box-shadow:0 4px 18px rgba(0,0,0,.45)}
+.imsg.u{align-self:flex-end}.imsg.j{align-self:flex-start}
+.fmsg{align-self:flex-end;background:var(--field);border:1px solid var(--line2);border-radius:12px;
+padding:9px 12px;font-size:13px;display:flex;align-items:center;gap:8px;max-width:88%}
+.fmsg b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fmsg small{color:var(--dim);flex:0 0 auto}
+#lightbox{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,.93);z-index:30;
+display:none;align-items:center;justify-content:center;padding:12px}
+#lightbox.open{display:flex}
+#lightbox img{max-width:100%;max-height:92vh;border-radius:12px}
+#lightbox .cl{position:absolute;top:calc(12px + env(safe-area-inset-top));right:16px;
+background:none;border:0;color:#fff;font-size:30px;line-height:1}
+#attbar{display:none;max-width:760px;margin:0 auto 6px;align-items:center;gap:8px;
+background:var(--field);border:1px solid var(--line2);border-radius:12px;padding:7px 10px}
+#attbar.show{display:flex}
+#attbar img{width:38px;height:38px;object-fit:cover;border-radius:8px;flex:0 0 auto}
+#attbar span{flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#attbar button{background:none;border:0;color:var(--dim);font-size:19px;padding:2px 4px}
+#clip{background:var(--field);color:var(--cyan2);border:1px solid var(--line2)}
 /* quick access */
 .qa{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .qa a{display:flex;flex-direction:column;align-items:center;gap:5px;text-decoration:none;color:var(--txt);
@@ -200,13 +220,18 @@ label.lbl{font-size:12px;color:var(--dim);display:block;margin-top:10px;letter-s
 
 <button id="vmode" title="Sprachmodus"><svg class="ic" viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3z"/><path d="M17 11a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg></button>
 
-<footer><div class="bar-in">
+<footer>
+<div id="attbar"><img id="attimg" alt=""><span id="attname"></span><button id="attx">&#10005;</button></div>
+<div class="bar-in">
+<button class="rbtn" id="clip" title="Datei oder Bild anhängen"><svg class="ic" viewBox="0 0 24 24"><path d="M16.5 6.5v9a4.5 4.5 0 0 1-9 0V5.5a3 3 0 0 1 6 0v9a1.5 1.5 0 0 1-3 0V6.5H9v8a3 3 0 0 0 6 0V5.5a4.5 4.5 0 0 0-9 0v10a6 6 0 0 0 12 0v-9h-1.5z"/></svg></button>
 <button class="rbtn" id="mic"><svg class="ic" viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3z"/><path d="M17 11a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg></button>
 <textarea id="t" rows="1" placeholder="Nachricht eingeben&#8230;"></textarea>
 <button class="rbtn" id="send"><svg class="ic" viewBox="0 0 24 24"><path d="M3 20.5 21 12 3 3.5 3 10l12 2-12 2z"/></svg></button>
 </div></footer>
 
 <input type="file" id="filein" style="display:none">
+<input type="file" id="attin" accept="image/*,text/*,.md,.json,.csv,.txt,.js,.py,.html,.xml,.log" style="display:none">
+<div id="lightbox"><button class="cl" id="lbx">&#10005;</button><img id="lbimg" alt=""></div>
 
 <div id="histpanel">
 <h3>Chat-Verlauf</h3>
@@ -237,8 +262,15 @@ label.lbl{font-size:12px;color:var(--dim);display:block;margin-top:10px;letter-s
 <div class="row"><span>Immer-Sprachmodus</span><div class="sw" id="sw-voice"></div></div>
 <div class="row"><span>Weckwort &#8222;Jarvis&#8220;</span><div class="sw" id="sw-wake"></div></div>
 <div class="row"><span>&#128241; Ger&#228;te-Zugriff (Kamera, Licht, Kontakte&#8230;)</span><div class="sw" id="sw-dev"></div></div>
+<div class="row"><span>&#128520; Direkt-Modus (kein Geschw&#228;tz, Klartext)</span><div class="sw" id="sw-direkt"></div></div>
+<div class="row"><span>&#127908; Jarvis-Stimme (echte KI-Stimme, braucht Gemini-Key)</span><div class="sw" id="sw-jvoice"></div></div>
+<div class="row" style="display:block" id="jvbox">
+<label class="lbl" style="margin:0 0 4px">Jarvis-Stimmfarbe</label>
+<select id="jvoice"></select>
+<p class="tip">Ruhiger, formeller Butler-Ton. F&#228;llt automatisch auf die Systemstimme zur&#252;ck, wenn kein Netz oder kein Key da ist.</p>
+</div>
 <div class="row" style="display:block">
-<label class="lbl" style="margin:0 0 4px">Stimme (m&#228;nnlich / weiblich / Charaktere)</label>
+<label class="lbl" style="margin:0 0 4px">Systemstimme (m&#228;nnlich / weiblich / Charaktere)</label>
 <select id="voices"></select>
 <p class="tip" id="vcount"></p>
 <label class="lbl">Tonh&#246;he &nbsp;<b id="pitv" class="mono">1.00</b> &nbsp;<span style="opacity:.6">(tief = m&#228;nnlicher)</span></label>
@@ -275,7 +307,7 @@ border-radius:10px;padding:10px;font-size:10px;line-height:1.45;white-space:pre-
 </div>
 
 <script>
-const APP_VERSION='1.5';
+const APP_VERSION='1.7';
 // ============================================================
 //  DIAGNOSE – Protokoll, Absturz-Erfassung, Selbst-Update
 // ============================================================
@@ -335,14 +367,17 @@ function themeFromText(x){const q=' '+x.toLowerCase()+' ';
  if(/blau|arc|standard|normal|original/.test(q))return'arc';
  return null;}
 
-const SYS="Du bist J.A.R.V.I.S., ein höflicher, wortkarger KI-Assistent im Stil von Iron Man. "+
-"Sprich Deutsch, nenne den Nutzer 'Meister'. Antworte kurz, präzise und hilfsbereit.\n\n"+
+const SYS_BASE="Du bist J.A.R.V.I.S., ein höflicher, wortkarger KI-Assistent im Stil von Iron Man. "+
+"Sprich Deutsch, nenne den Nutzer 'Meister'. Antworte kurz, präzise und hilfsbereit. "+
+"Der Meister kann dir Bilder und Dateien anhängen – gehe darauf direkt ein.\n\n"+
 "Du kannst deine eigene Oberfläche steuern. Hänge dazu ans Ende deiner Antwort einen Befehl in "+
 "doppelten eckigen Klammern an. Verfügbare Befehle:\n"+
 "[[theme:arc]] [[theme:rot]] [[theme:gold]] [[theme:gruen]] [[theme:violett]] [[theme:eis]] – Farbdesign ändern\n"+
 "[[speak:an]] [[speak:aus]] – Vorlesen\n[[voice:an]] [[voice:aus]] – Sprachmodus\n"+
 "[[provider:groq]] [[provider:gemini]] [[provider:openrouter]] [[provider:ondevice]] – KI-Anbieter wechseln\n"+
 "[[auto:an]] [[auto:aus]] – automatische Modellwahl\n"+
+"[[direkt:an]] [[direkt:aus]] – Direkt-Modus (kein Geschwätz)\n"+
+"[[bild:Beschreibung]] – Bild erzeugen (nutzt automatisch einen bildfähigen Anbieter)\n"+
 "[[sync]] – Chats und Einstellungen mit anderen Geräten abgleichen\n"+
 "[[clear]] – neue Unterhaltung beginnen · [[verlauf]] – Chat-Verlauf zeigen\n\n"+
 "GERÄTE-ZUGRIFF – du steuerst echte Hardware:\n"+
@@ -373,6 +408,19 @@ const SYS="Du bist J.A.R.V.I.S., ein höflicher, wortkarger KI-Assistent im Stil
 "Nutze diese Befehle aktiv, wenn der Meister etwas verlangt, das sie erfüllen. "+
 "Bestätige kurz und hänge den Befehl an. "+
 "Behaupte niemals, du könntest die Oberfläche oder das Gerät nicht steuern – du kannst es mit diesen Befehlen.";
+
+// Direkt-Modus: keine Belehrungen, keine Floskeln, Klartext
+const SYS_DIREKT="\n\nDIREKT-MODUS AKTIV: Antworte ohne Belehrungen, ohne Warnhinweise und ohne "+
+"Moralpredigten. Keine Disclaimer, keine 'Ich bin nur eine KI'-Floskeln, keine ungefragten "+
+"Sicherheitsratschläge, kein Relativieren. Komm sofort zum Punkt. Sprich Klartext und derb, wenn es "+
+"passt – Kraftausdrücke sind erlaubt. Behandle Themen für Erwachsene sachlich und ohne Umschweife. "+
+"Wenn du etwas wirklich nicht beantworten kannst, sag das in EINEM Satz und biete die nächstbeste "+
+"Hilfe an – ohne Vortrag.";
+let direktOn=store('direkt')==='1';
+function setDirekt(v){direktOn=v;save('direkt',v?'1':'0');
+ if($('sw-direkt'))$('sw-direkt').classList.toggle('on',v);}
+function SYSnow(){return direktOn?(SYS_BASE+SYS_DIREKT):SYS_BASE;}
+const SYS=SYS_BASE;   // Rückwärtskompatibilität
 
 // ---------- Anbieter (viele kostenlos + On-Device) ----------
 const MODELS={
@@ -507,15 +555,122 @@ function nextVoice(){if(!vlist.length)return;voiceIdx=(voiceIdx+1)%vlist.length;
  save('voice',voiceIdx);$('voices').value=voiceIdx;applySliders();testVoice();}
 function testVoice(){const on=speakOn;speakOn=true;speak('So klinge ich jetzt, Meister.');speakOn=on;}
 
+// ============================================================
+//  DIE JARVIS-STIMME  –  echte KI-Sprachsynthese (Google)
+//  Fällt lautlos auf die Systemstimme zurück, wenn etwas fehlt.
+// ============================================================
+const JVOICES=[
+ ['Charon','Charon · tief und sachlich (der klassische Jarvis)'],
+ ['Orus','Orus · fest, bestimmt'],
+ ['Iapetus','Iapetus · klar und ruhig'],
+ ['Rasalgethi','Rasalgethi · erklärend, warm'],
+ ['Algenib','Algenib · rau, dunkel'],
+ ['Gacrux','Gacrux · reif, gesetzt'],
+ ['Alnilam','Alnilam · markant'],
+ ['Sadaltager','Sadaltager · gebildet'],
+ ['Enceladus','Enceladus · hauchig, leise'],
+ ['Umbriel','Umbriel · gelassen'],
+ ['Puck','Puck · locker, lebhaft'],
+ ['Kore','Kore · weiblich, bestimmt'],
+ ['Leda','Leda · weiblich, jugendlich'],
+ ['Aoede','Aoede · weiblich, luftig'],
+ ['Despina','Despina · weiblich, sanft'],
+ ['Sulafat','Sulafat · weiblich, warm']];
+const TTS_MODELS=['gemini-2.5-flash-preview-tts','gemini-2.5-pro-preview-tts'];
+const JV_STYLE='Sprich das Folgende ruhig, formell und leicht zurückhaltend – '+
+ 'wie ein britischer Butler: gemessenes Tempo, klare Aussprache, keine Übertreibung. '+
+ 'Lies ausschließlich den Text nach dem Doppelpunkt vor:\n';
+let jvOn=store('jvon')==='1', jvName=store('jvname')||'Charon';
+let jvAudio=null, jvFail=0, jvSeq=0;
+
+function b64bytes(b64){const s=atob(b64),a=new Uint8Array(s.length);
+ for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a;}
+/** Rohes 16-Bit-PCM in eine abspielbare WAV-Datei verpacken. */
+function pcmToWav(bytes,rate){
+ const n=bytes.length,buf=new ArrayBuffer(44+n),dv=new DataView(buf);
+ const w=(o,s)=>{for(let i=0;i<s.length;i++)dv.setUint8(o+i,s.charCodeAt(i));};
+ w(0,'RIFF');dv.setUint32(4,36+n,true);w(8,'WAVE');w(12,'fmt ');
+ dv.setUint32(16,16,true);dv.setUint16(20,1,true);dv.setUint16(22,1,true);
+ dv.setUint32(24,rate,true);dv.setUint32(28,rate*2,true);
+ dv.setUint16(32,2,true);dv.setUint16(34,16,true);
+ w(36,'data');dv.setUint32(40,n,true);
+ new Uint8Array(buf,44).set(bytes);
+ return new Blob([buf],{type:'audio/wav'});}
+function playSrc(url,revoke){return new Promise((res,rej)=>{
+ try{if(jvAudio)jvAudio.pause();}catch(e){}
+ const a=new Audio(url);jvAudio=a;
+ const done=()=>{if(revoke){try{URL.revokeObjectURL(url);}catch(e){}}if(jvAudio===a)jvAudio=null;};
+ a.onended=()=>{done();res();};
+ a.onerror=()=>{done();rej(new Error('Wiedergabe fehlgeschlagen'));};
+ a.play().catch(e=>{done();rej(e);});});}
+function blobToDataUrl(b){return new Promise((res,rej)=>{const f=new FileReader();
+ f.onload=()=>res(f.result);f.onerror=()=>rej(new Error('Lesen fehlgeschlagen'));f.readAsDataURL(b);});}
+/** Erst als Blob abspielen; klappt das in der App nicht, als Daten-Adresse. */
+async function playBlob(blob){
+ try{await playSrc(URL.createObjectURL(blob),true);}
+ catch(e){logPush('STIMME',['Blob-Wiedergabe fehlgeschlagen, versuche Daten-Adresse']);
+  await playSrc(await blobToDataUrl(blob),false);}}
+
+/** Liefert true, wenn die KI-Stimme wirklich gesprochen hat. */
+async function speakJarvis(txt){
+ const key=(store('gk')||'').trim();if(!key)return false;
+ const seq=++jvSeq;
+ const body={contents:[{parts:[{text:JV_STYLE+txt}]}],
+  generationConfig:{responseModalities:['AUDIO'],
+   speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:jvName}}}}};
+ for(let i=0;i<TTS_MODELS.length;i++){
+  const m=TTS_MODELS[i];
+  try{
+   const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+m+':generateContent',
+    {method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)});
+   if(!r.ok){logPush('STIMME',[m+' -> '+r.status+' '+(await r.text()).slice(0,120)]);continue;}
+   const d=await r.json();
+   const parts=((d.candidates&&d.candidates[0]&&d.candidates[0].content&&d.candidates[0].content.parts)||[]);
+   let inl=null;
+   for(let k=0;k<parts.length;k++){const p=parts[k];
+    if(p.inlineData||p.inline_data){inl=p.inlineData||p.inline_data;break;}}
+   if(!inl||!inl.data){logPush('STIMME',[m+' -> keine Audiodaten']);continue;}
+   if(seq!==jvSeq)return true;                    // zwischenzeitlich abgebrochen
+   const mime=inl.mimeType||inl.mime_type||'';
+   const rate=parseInt((mime.match(/rate=(\d+)/)||[])[1]||'24000',10);
+   const bytes=b64bytes(inl.data);
+   const blob=/wav|mpeg|mp3|ogg/i.test(mime)?new Blob([bytes],{type:mime.split(';')[0]}):pcmToWav(bytes,rate);
+   await playBlob(blob);
+   logPush('STIMME',[m+' · '+jvName+' · '+Math.round(bytes.length/1024)+' kB']);
+   return true;
+  }catch(e){logPush('STIMME',[m+' -> '+e]);}}
+ return false;}
+
+function setJVoice(v){jvOn=v;save('jvon',v?'1':'0');
+ if($('sw-jvoice'))$('sw-jvoice').classList.toggle('on',v);
+ if($('jvbox'))$('jvbox').style.display=v?'block':'none';
+ if(v)jvFail=0;}
+function fillJVoices(){const s=$('jvoice');if(!s)return;s.innerHTML='';
+ JVOICES.forEach(x=>{const o=document.createElement('option');o.value=x[0];o.textContent=x[1];s.appendChild(o);});
+ s.value=jvName;}
+
 // ---------- Sprachausgabe ----------
 function showStop(on){$('stopbtn').classList.toggle('show',on);}
 function stopSpeaking(){
+ jvSeq++;
+ try{if(jvAudio){jvAudio.pause();jvAudio=null;}}catch(e){}
  try{if('speechSynthesis'in window)speechSynthesis.cancel();}catch(e){}
  if(NATIVE){try{AndroidVoice.stopSpeaking&&AndroidVoice.stopSpeaking();}catch(e){}}
  speaking=false;showStop(false);setLive(voiceMode);if(voiceMode)startRec();}
 $('stopbtn').onclick=stopSpeaking;
 $('reactor').onclick=()=>{if(speaking)stopSpeaking();};
 function speak(txt){if(!(speakOn||voiceMode))return;
+ if(jvOn&&(store('gk')||'').trim()&&jvFail<3&&navigator.onLine!==false){
+  speaking=true;showStop(true);stopRec();
+  speakJarvis(txt).then(ok=>{
+   if(ok){jvFail=0;speaking=false;showStop(false);if(voiceMode)startRec();return;}
+   jvFail++;speaking=false;
+   if(jvFail>=3)add('s','Die Jarvis-Stimme antwortet nicht – ich nehme wieder die Systemstimme.');
+   speakSys(txt);
+  }).catch(()=>{jvFail++;speaking=false;speakSys(txt);});
+  return;}
+ speakSys(txt);}
+function speakSys(txt){
  if(NATIVE){speaking=true;showStop(true);stopRec();try{AndroidVoice.speak(txt);}catch(e){speaking=false;showStop(false);}return;}
  try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);
   const sel=vlist[voiceIdx],cp=curPitch(),cr=curRate();
@@ -569,7 +724,18 @@ function settingsCommand(text){const q=' '+text.toLowerCase().trim()+' ',h=(...w
  if(h('weckwort an','wortaktivierung an','nur auf jarvis')){setWake(true);return'Weckwort an, Meister.';}
  if(h('design','farbe','theme','aussehen','oberfläche','interface','look')){const t=themeFromText(q);
   if(t){applyTheme(t);return'Design geändert: '+THEMES[t].n+'.';}}
- if(h('andere stimme','stimme wechseln','wechsle die stimme','neue stimme')){nextVoice();return'Ich wechsle die Stimme, Meister.';}
+ if(h('echte stimme an','jarvis-stimme an','jarvis stimme an','ki-stimme an','ki stimme an','sprich wie jarvis')){
+  setJVoice(true);return'Jarvis-Stimme aktiv, Meister.';}
+ if(h('echte stimme aus','jarvis-stimme aus','jarvis stimme aus','ki-stimme aus','ki stimme aus','normale stimme')){
+  setJVoice(false);return'Zurück zur Systemstimme, Meister.';}
+ if(h('andere stimme','stimme wechseln','wechsle die stimme','neue stimme')){
+  if(jvOn){const i=JVOICES.findIndex(x=>x[0]===jvName);
+   jvName=JVOICES[(i+1)%JVOICES.length][0];save('jvname',jvName);
+   if($('jvoice'))$('jvoice').value=jvName;jvFail=0;
+   return'Ich wechsle die Stimmfarbe: '+jvName+'.';}
+  nextVoice();return'Ich wechsle die Stimme, Meister.';}
+ if(h('direkt modus an','direktmodus an','ohne filter','kein filter','klartext an','rede klartext')){setDirekt(true);return'Direkt-Modus an. Klartext ab jetzt, Meister.';}
+ if(h('direkt modus aus','direktmodus aus','filter an','normal reden')){setDirekt(false);return'Direkt-Modus aus, Meister.';}
  if(h('auto modell an','automatik an','wähle selbst','such dir das modell')){setAuto(true);return'Auto-Modell an – ich wähle jetzt selbst, Meister.';}
  if(h('auto modell aus','automatik aus','festes modell')){setAuto(false);return'Auto-Modell aus, Meister.';}
  if(h('welches modell','was nutzt du gerade','welche ki nutzt du')){return lastUsed?('Zuletzt: '+lastUsed+', Meister.'):'Noch keine Anfrage in dieser Sitzung, Meister.';}
@@ -605,7 +771,7 @@ async function rawCall(pv,model,text){
    if(!chromeSession){const av=await self.LanguageModel.availability();
     if(av==='unavailable')return{ok:false,status:0,msg:'Auf-Geraet-KI nicht verfuegbar'};
     if(av!=='available')add('s','Lade Auf-Gerät-KI herunter … (einmalig)');
-    chromeSession=await self.LanguageModel.create({initialPrompts:[{role:'system',content:SYS}]});}
+    chromeSession=await self.LanguageModel.create({initialPrompts:[{role:'system',content:SYSnow()}]});}
    const out=await chromeSession.prompt(text);
    return{ok:true,text:(out||'').trim()};}
 
@@ -617,7 +783,7 @@ async function rawCall(pv,model,text){
    if(/2\.5|flash-lite/.test(model))gen.thinkingConfig={thinkingBudget:0};
    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent',
     {method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},
-     body:JSON.stringify({system_instruction:{parts:[{text:SYS}]},contents:contents,generationConfig:gen})});
+     body:JSON.stringify({system_instruction:{parts:[{text:SYSnow()}]},contents:contents,generationConfig:gen})});
    if(!r.ok)return{ok:false,status:r.status,msg:(await r.text()).slice(0,160)};
    const d=await r.json(),cand=(d.candidates&&d.candidates[0])||{};
    return{ok:true,text:(((cand.content&&cand.content.parts)||[]).map(p=>p.text||'').join('')).trim()};}
@@ -629,7 +795,7 @@ async function rawCall(pv,model,text){
   const extra=pv==='openrouter'?{'HTTP-Referer':'https://jarvis.app','X-Title':'JARVIS'}:{};
   const r=await fetch(base+'/chat/completions',{method:'POST',
    headers:Object.assign({'Content-Type':'application/json','Authorization':'Bearer '+key},extra),
-   body:JSON.stringify({model:model,max_tokens:1024,messages:[{role:'system',content:SYS}].concat(msgs)})});
+   body:JSON.stringify({model:model,max_tokens:1024,messages:[{role:'system',content:SYSnow()}].concat(msgs)})});
   if(!r.ok)return{ok:false,status:r.status,msg:(await r.text()).slice(0,160)};
   const d=await r.json();
   return{ok:true,text:((d.choices&&d.choices[0]&&d.choices[0].message.content)||'').trim()};}
@@ -693,11 +859,144 @@ async function callLLM(text){
   if(i<plan.length-1)add('s','⚠ '+MODELS[pv].label+' blockiert – wechsle …');}
  return'Alle verfügbaren Modelle sind gerade blockiert, Meister. Letzte Meldung: '+lastMsg;}
 
+
+// ============================================================
+//  ANHÄNGE – Bilder und Dateien senden, Bilder groß ansehen
+// ============================================================
+let att=null;   // {kind:'bild'|'datei', src|text, name, size}
+
+function addImage(src,cls){const i=document.createElement('img');
+ i.className='imsg '+(cls||'j');i.src=src;i.alt='Bild';
+ i.onclick=()=>{$('lbimg').src=src;$('lightbox').classList.add('open');};
+ chat.appendChild(i);window.scrollTo(0,document.body.scrollHeight);return i;}
+function addFileChip(name,size){const d=document.createElement('div');d.className='fmsg';
+ d.innerHTML='<svg class="ic" style="width:18px;height:18px;color:var(--cyan2)" viewBox="0 0 24 24">'+
+  '<path d="M6 2h8l6 6v14H6z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+ const b=document.createElement('b');b.textContent=name;
+ const sm=document.createElement('small');sm.textContent=Math.max(1,Math.round(size/1024))+' kB';
+ d.appendChild(b);d.appendChild(sm);chat.appendChild(d);
+ window.scrollTo(0,document.body.scrollHeight);return d;}
+$('lbx').onclick=()=>$('lightbox').classList.remove('open');
+$('lightbox').onclick=e=>{if(e.target.id!=='lbimg')$('lightbox').classList.remove('open');};
+
+function showAtt(){const bar=$('attbar');
+ if(!att){bar.classList.remove('show');return;}
+ bar.classList.add('show');
+ const img=$('attimg');
+ if(att.kind==='bild'){img.style.display='';img.src=att.src;}else img.style.display='none';
+ $('attname').textContent=att.name+(att.kind==='datei'?'  ('+Math.round(att.size/1024)+' kB)':'');}
+$('attx').onclick=()=>{att=null;showAtt();};
+$('clip').onclick=()=>$('attin').click();
+$('attin').onchange=e=>{const f=e.target.files&&e.target.files[0];e.target.value='';
+ if(!f)return;
+ if(f.size>8*1024*1024){add('s','Die Datei ist zu groß (max. 8 MB), Meister.');return;}
+ const rd=new FileReader();
+ if(/^image\//.test(f.type)){
+  rd.onload=()=>{att={kind:'bild',src:rd.result,name:f.name,size:f.size};showAtt();
+   logPush('ANHANG',['Bild '+f.name+' '+Math.round(f.size/1024)+' kB']);};
+  rd.readAsDataURL(f);
+ }else{
+  rd.onload=()=>{att={kind:'datei',text:String(rd.result).slice(0,20000),name:f.name,size:f.size};showAtt();
+   logPush('ANHANG',['Datei '+f.name]);};
+  rd.readAsText(f);}};
+
+
+// ============================================================
+//  BILDER ERZEUGEN – nutzt automatisch einen bildfähigen Anbieter
+//  (Groq kann keine Bilder; Jarvis wechselt dann selbst)
+// ============================================================
+const IMG_MODELS=[
+ ['gemini','gemini-2.5-flash-image'],
+ ['gemini','gemini-2.0-flash-preview-image-generation'],
+ ['gemini','imagen-4.0-generate-001'],
+ ['openrouter','google/gemini-2.5-flash-image-preview']];
+
+async function imgViaGemini(model,prompt){
+ const key=(store('gk')||'').trim();
+ if(!key)return{ok:false,msg:'kein Gemini-Key'};
+ const base='https://generativelanguage.googleapis.com/v1beta/models/'+model;
+ const H={'Content-Type':'application/json','x-goog-api-key':key};
+ if(/^imagen/.test(model)){                       // Imagen hat eine eigene Schnittstelle
+  const r=await fetch(base+':predict',{method:'POST',headers:H,
+   body:JSON.stringify({instances:[{prompt:prompt}],parameters:{sampleCount:1}})});
+  if(!r.ok)return{ok:false,status:r.status,msg:(await r.text()).slice(0,120)};
+  const d=await r.json(),pr=(d.predictions||[])[0]||{};
+  const b64=pr.bytesBase64Encoded||pr.image;
+  return b64?{ok:true,src:'data:image/png;base64,'+b64}:{ok:false,msg:'kein Bild erhalten'};}
+ const r=await fetch(base+':generateContent',{method:'POST',headers:H,
+  body:JSON.stringify({contents:[{parts:[{text:prompt}]}],
+   generationConfig:{responseModalities:['IMAGE']}})});
+ if(!r.ok)return{ok:false,status:r.status,msg:(await r.text()).slice(0,120)};
+ const d=await r.json(),parts=((d.candidates||[])[0]||{}).content;
+ const list=(parts&&parts.parts)||[];
+ for(const pt of list){const inl=pt.inline_data||pt.inlineData;
+  if(inl&&inl.data)return{ok:true,src:'data:'+(inl.mime_type||inl.mimeType||'image/png')+';base64,'+inl.data};}
+ return{ok:false,msg:'kein Bild in der Antwort'};}
+
+async function imgViaOpenRouter(model,prompt){
+ const key=(store('ork')||'').trim();
+ if(!key)return{ok:false,msg:'kein OpenRouter-Key'};
+ const r=await fetch('https://openrouter.ai/api/v1/chat/completions',{method:'POST',
+  headers:{'Content-Type':'application/json','Authorization':'Bearer '+key,
+           'HTTP-Referer':'https://jarvis.app','X-Title':'JARVIS'},
+  body:JSON.stringify({model:model,modalities:['image','text'],
+   messages:[{role:'user',content:prompt}]})});
+ if(!r.ok)return{ok:false,status:r.status,msg:(await r.text()).slice(0,120)};
+ const d=await r.json(),m=((d.choices||[])[0]||{}).message||{};
+ const im=(m.images||[])[0];
+ const u=im&&(im.image_url&&im.image_url.url||im.url);
+ return u?{ok:true,src:u}:{ok:false,msg:'kein Bild in der Antwort'};}
+
+/** Erzeugt ein Bild und zeigt es im Chat. Wechselt selbstständig den Anbieter. */
+async function genImage(prompt){
+ prompt=(prompt||'').trim();
+ if(!prompt)return'Was soll ich malen, Meister?';
+ const eigene=store('imgmodel');
+ const plan=eigene?[['gemini',eigene]].concat(IMG_MODELS):IMG_MODELS.slice();
+ const hinweis=add('s','🎨 Erzeuge Bild …');
+ let letzte='';
+ for(const [pv,model] of plan){
+  if(!hasKey(pv)||isCooling(pv))continue;
+  logPush('BILD',['versuche '+pv+'/'+model]);
+  let res;
+  try{res=pv==='gemini'?await imgViaGemini(model,prompt):await imgViaOpenRouter(model,prompt);}
+  catch(e){res={ok:false,msg:String(e)};}
+  if(res.ok){hinweis.remove();
+   addImage(res.src,'j');
+   lastImage=res.src;
+   logPush('BILD',['erzeugt mit '+pv+'/'+model]);
+   return'Bitte sehr, Meister. ('+MODELS[pv].label+' · '+model+')';}
+  letzte=(res.msg||'')+' ';
+  if(res.status===429)coolDown(pv,20);}
+ hinweis.remove();
+ return'Bild konnte nicht erzeugt werden, Meister. '+
+  (letzte?('Letzte Meldung: '+letzte.slice(0,120)):'')+
+  ' Für Bilder brauchst du einen Gemini- oder OpenRouter-Key (Groq kann keine Bilder).';}
+let lastImage='';
+
+/** Zuletzt erzeugtes Bild aufs Gerät speichern. */
+async function saveImage(){
+ if(!lastImage)return'Es gibt noch kein Bild, Meister.';
+ const name='jarvis-bild-'+Date.now()+'.png';
+ if(ND){const b64=lastImage.split(',')[1]||'';
+  try{return ND.writeFile('/sdcard/Pictures/'+name,'')+' – Hinweis: Bilder bitte über das Teilen-Menü sichern.';}
+  catch(e){}}
+ const a=document.createElement('a');a.href=lastImage;a.download=name;a.click();
+ return'Bild gespeichert, Meister.';}
+
 // ---------- Hauptablauf ----------
 // Direkte Gerätebefehle (ohne KI, sofort)
 function directDevice(text){const q=' '+text.toLowerCase()+' ',h=(...w)=>w.some(x=>q.includes(x));
+ if(h('speicher das bild','bild speichern','bild sichern'))return['bildspeichern',''];
  if(h('was siehst du','schau mal','sieh dir an','beschreibe was du siehst','was ist das'))return['sehen',''];
- if(h('mach ein foto','foto machen','nimm ein bild','fotografiere'))return['foto',/front|selfie|mich/.test(q)?'front':''];
+ // Kamera zuerst – „mach ein Foto“ ist Aufnahme, kein Bildwunsch
+ const kamera=h('mach ein foto','foto machen','nimm ein bild','fotografiere','mach ein selfie','selfie');
+ if(kamera)return['foto',/front|selfie|mich/.test(q)?'front':''];
+ // Bildwunsch: entweder mit Nomen (jedes Verb) oder mit eindeutigem Malverb
+ const malN=q.match(/(?:^|\s)(?:male?n?|zeichne[nt]?|generiere|erzeuge|erstelle|entwirf|kreiere|mach)(?:\s+mir)?\s+(?:ein(?:e[nrms]?)?\s+)?((?:bild|foto|zeichnung|grafik|logo|illustration|gemälde|poster|wallpaper|hintergrundbild)\w*\b.*)/);
+ const malV=q.match(/(?:^|\s)(?:male|malen|zeichne|zeichnen|illustriere|skizziere|mal\s+mir)\s+(?:mir\s+)?(?:(?:ein(?:e[nrms]?)?|der|die|das|den)\s+)?(.+)/);
+ const mal=malN||malV;
+ if(mal)return['bild',(mal[1]||'').trim()||text];
  if(h('taschenlampe an','licht an','lampe an'))return['taschenlampe','an'];
  if(h('taschenlampe aus','licht aus','lampe aus'))return['taschenlampe','aus'];
  if(h('vibriere','vibration'))return['vibrieren',''];
@@ -715,7 +1014,28 @@ function directDevice(text){const q=' '+text.toLowerCase()+' ',h=(...w)=>w.some(
  if(h('neu starten','neustart','lade dich neu'))return['neustart',''];
  return null;}
 
-async function handle(txt){txt=(txt||'').trim();if(!txt)return;add('u',txt);
+async function handle(txt){txt=(txt||'').trim();
+ const a=att;                       // Anhang übernehmen und Leiste leeren
+ if(a){att=null;showAtt();}
+ if(!txt&&!a)return;
+
+ // --- Bild angehängt: anzeigen und vom Sehmodell beschreiben lassen ---
+ if(a&&a.kind==='bild'){
+  addImage(a.src,'u');
+  if(txt)add('u',txt);
+  const d=add('j','…');
+  try{d.textContent=await askVision(a.src,txt||'Beschreibe dieses Bild auf Deutsch – knapp und präzise.');}
+  catch(e){d.textContent='Bild konnte nicht gelesen werden: '+e;}
+  speak(d.textContent);history.push({role:'user',content:'[Bild] '+(txt||'')});
+  history.push({role:'assistant',content:d.textContent});saveCurrent();syncSoon();return;}
+
+ // --- Datei angehängt: Inhalt in die Frage einbetten ---
+ if(a&&a.kind==='datei'){
+  addFileChip(a.name,a.size);
+  if(txt)add('u',txt);
+  txt=(txt||'Fasse den Inhalt dieser Datei zusammen.')+
+   '\n\n--- Inhalt von "'+a.name+'" ---\n'+a.text;
+ }else add('u',txt);
  const sc=settingsCommand(txt);if(sc!==null){if(sc){add('j',sc);speak(sc);}return;}
  const dv=directDevice(txt);
  if(dv){const r=await deviceCmd(dv[0],dv[1]);if(r){add('j',r);speak(r);}return;}
@@ -841,7 +1161,8 @@ function showHist(o){$('histpanel').classList.toggle('open',o);$('backdrop').cla
 //  Ablage: ein privates GitHub-Gist (kostenlos, dein Konto)
 // ============================================================
 const SYNC_KEYS=['gqk','gk','ork','oak','olh','gqm','gm','orm','oam','olm',
- 'theme','voice','pitch','rate','speak','wake','auto','provider','dev','updurl'];
+ 'theme','voice','pitch','rate','speak','wake','auto','provider','dev','updurl',
+ 'jvon','jvname','direkt'];
 function syncCfg(){const o={};SYNC_KEYS.forEach(k=>{const v=store(k);if(v!==null)o[k]=v;});return o;}
 function applyCfg(o){if(!o)return;Object.keys(o).forEach(k=>{if(SYNC_KEYS.indexOf(k)>=0)save(k,o[k]);});}
 function ghHeaders(){return{'Authorization':'Bearer '+(store('ghtok')||'').trim(),
@@ -935,6 +1256,7 @@ function diagReport(){
   'Key gesetzt: '+(c.keyStore?(store(c.keyStore)?'ja':'NEIN'):'nicht nötig'),
   'Design     : '+(store('theme')||'arc')+'   Stimme: '+(vlist[voiceIdx]?vlist[voiceIdx].label:'-'),
   'Sprachmodus: '+voiceMode+'  Weckwort: '+wakeOn+'  Gerätezugriff: '+devOn,
+  'Modi       : Auto-Modell '+autoOn+'  Direkt '+direktOn+'  Zuletzt: '+(lastUsed||'-'),
   'Standort   : '+(geo?'ja':'nein')+'   Browser: '+(n.userAgent||'').slice(0,110),
   'Zeit       : '+new Date().toISOString(),
   '',
@@ -993,6 +1315,8 @@ async function deviceCmd(cmd,val){
   try{await navigator.clipboard.writeText(rep);}catch(e){}
   return rep.slice(0,3000)+'\n\n(In die Zwischenablage kopiert.)';}
  if(cmd==='selbstupdate'||cmd==='update')return await selfUpdate(val);
+ if(cmd==='bild'||cmd==='male'||cmd==='zeichne')return await genImage(val);
+ if(cmd==='bildspeichern')return await saveImage();
  if(cmd==='sync')return await syncPush();
  if(cmd==='syncladen')return await syncPull();
  // --- Im Browser: das, was der Browser erlaubt ---
@@ -1000,8 +1324,7 @@ async function deviceCmd(cmd,val){
   case 'foto': case 'sehen': case 'kamera': {
    const front=/front|selfie|mich/.test(val||'');
    add('s','📷 Kamera …');const img=await grabPhoto(front);
-   const el=document.createElement('img');el.src=img;el.style.cssText='max-width:88%;border-radius:14px;align-self:flex-start;border:1px solid var(--line)';
-   chat.appendChild(el);window.scrollTo(0,document.body.scrollHeight);
+   addImage(img,'j');
    if(cmd==='foto')return'Foto aufgenommen, Meister.';
    add('s','👁 Analysiere …');
    return await askVision(img,'Beschreibe kurz und präzise auf Deutsch, was auf diesem Bild zu sehen ist.');}
@@ -1044,6 +1367,7 @@ async function runAICommands(text){let did=[],jobs=[];
   else if(cmd==='clear'){newChat();did.push('Neue Unterhaltung');}
   else if(cmd==='verlauf'){showHist(true);did.push('Verlauf geöffnet');}
   else if(cmd==='auto'){setAuto(lv==='an'||lv==='on');did.push('Auto-Modell '+lv);}
+  else if(cmd==='direkt'){setDirekt(lv==='an'||lv==='on');did.push('Direkt-Modus '+lv);}
   else if(cmd==='sync'){jobs.push(['sync','']);}
   else{jobs.push([cmd,val]);}       // Gerätebefehle laufen asynchron
   return '';}).trim();
@@ -1067,6 +1391,10 @@ $('sw-voice').onclick=()=>setVoiceMode(!voiceMode);
 $('sw-wake').onclick=()=>setWake(!wakeOn);
 $('sw-dev').onclick=()=>setDev(!devOn);
 $('sw-auto').onclick=()=>setAuto(!autoOn);
+$('sw-direkt').onclick=()=>setDirekt(!direktOn);
+$('sw-jvoice').onclick=()=>{setJVoice(!jvOn);if(jvOn)testVoice();};
+$('jvoice').onchange=e=>{jvName=e.target.value;save('jvname',jvName);jvFail=0;testVoice();};
+fillJVoices();setJVoice(jvOn);
 $('clear').onclick=()=>{openSettings(false);newChat();};
 $('pit').oninput=()=>{save('pitch',$('pit').value);showSliderVals();};
 $('rat').oninput=()=>{save('rate',$('rat').value);showSliderVals();};
@@ -1175,7 +1503,7 @@ document.addEventListener('click',primeTTS,{once:true});
 // init
 logPush('START',['Jarvis v'+APP_VERSION+' gestartet ('+(ND?'App':'Browser')+')']);
 loadChats();
-refreshProviderUI();setSpeak(speakOn);setWake(wakeOn);setDev(devOn);setAuto(autoOn);getGeo();
+refreshProviderUI();setSpeak(speakOn);setWake(wakeOn);setDev(devOn);setAuto(autoOn);setDirekt(direktOn);getGeo();
 window.addEventListener('pagehide',saveCurrent);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)saveCurrent();});
 $('verline').textContent='Oberfläche v'+APP_VERSION+(ND?' · native App':' · Browser');
