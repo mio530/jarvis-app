@@ -21,6 +21,7 @@ import android.os.Looper;
 import android.os.StatFs;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+import android.provider.ContactsContract;
 import android.provider.Settings;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
@@ -392,6 +393,58 @@ public class MainActivity extends AppCompatActivity {
 
         // --- Telefon -------------------------------------------------------
         @JavascriptInterface
+        /**
+         * Sucht Kontakte nach Namen und liefert "Name|Nummer" je Zeile.
+         * Ohne das hier hatte das Modell keine Moeglichkeit, an eine Nummer zu
+         * kommen - und hat prompt eine erfunden und angerufen.
+         */
+        @JavascriptInterface
+        public String findContact(String name) {
+            if (!has(Manifest.permission.READ_CONTACTS))
+                return "KEIN_RECHT";
+            String q = name == null ? "" : name.trim();
+            if (q.isEmpty()) return "";
+            StringBuilder sb = new StringBuilder();
+            android.database.Cursor c = null;
+            try {
+                c = getContentResolver().query(
+                        ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                        new String[]{ ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                                      ContactsContract.CommonDataKinds.Phone.NUMBER },
+                        ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " LIKE ?",
+                        new String[]{ "%" + q + "%" }, null);
+                java.util.HashSet<String> gesehen = new java.util.HashSet<>();
+                while (c != null && c.moveToNext() && gesehen.size() < 20) {
+                    String n = c.getString(0), nr = c.getString(1);
+                    if (n == null || nr == null) continue;
+                    String sauber = nr.replaceAll("[^+0-9]", "");
+                    if (sauber.length() < 4) continue;
+                    if (!gesehen.add(n + "|" + sauber)) continue;
+                    sb.append(n).append('|').append(sauber).append('\n');
+                }
+            } catch (Exception e) { return "FEHLER: " + e; }
+            finally { if (c != null) c.close(); }
+            return sb.toString().trim();
+        }
+
+        /**
+         * Legt die aktualisierte Oberflaeche dort ab, wo die App sie auch
+         * wirklich lesen darf. Vorher schrieb das Selbst-Update fest nach
+         * /sdcard/Jarvis - und scheiterte ab Android 11 ohne Vollzugriff.
+         */
+        @JavascriptInterface
+        public String updateInterface(String html) {
+            try {
+                if (html == null || html.length() < 5000)
+                    return "Inhalt zu klein - Abbruch.";
+                File ziel = new File(jarvisDir(), "index.html");
+                FileOutputStream out = new FileOutputStream(ziel);
+                out.write(html.getBytes(StandardCharsets.UTF_8));
+                out.close();
+                return "Gespeichert: " + ziel.getAbsolutePath();
+            } catch (Exception e) { return "Fehler beim Schreiben: " + e; }
+        }
+
         public String call(String number) {
             try {
                 if (has(Manifest.permission.CALL_PHONE)) {

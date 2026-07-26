@@ -320,7 +320,7 @@ border-radius:10px;padding:10px;font-size:10px;line-height:1.45;white-space:pre-
 </div>
 
 <script>
-const APP_VERSION='2.7.1';
+const APP_VERSION='2.8';
 // ============================================================
 //  DIAGNOSE – Protokoll, Absturz-Erfassung, Selbst-Update
 // ============================================================
@@ -402,7 +402,7 @@ const SYS_BASE="Du bist J.A.R.V.I.S., ein höflicher, wortkarger KI-Assistent im
 "[[oeffnen:youtube.com]] – öffnet die App, wenn es eine gibt, sonst die Webseite\n"+
 "[[web:youtube.com]] – erzwingt den Browser, auch wenn eine App da ist\n"+
 "[[starte:Spotify]] – App direkt nach Namen starten (bevorzugt bei App-Wünschen)\n"+
-"[[anrufen:0123456]] – Anruf starten · [[sms:0123456]] – SMS\n"+
+"[[anrufen:Papa]] – Anruf; Name oder Nummer, Namen werden nachgeschlagen · [[sms:0123456]] – SMS\n"+
 "[[karte:Berlin]] – Karte öffnen\n"+
 "[[kopieren:Text]] – in Zwischenablage · [[einfuegen]] – Zwischenablage lesen\n"+
 "[[kontakt]] – Kontakt auswählen · [[datei]] – Datei lesen · [[speichern:Text]] – Datei ablegen\n"+
@@ -432,12 +432,15 @@ const SYS_BASE="Du bist J.A.R.V.I.S., ein höflicher, wortkarger KI-Assistent im
 "5. Wenn du über Befehle SPRICHST oder sie erklärst, schreibe sie in einfachen Anführungszeichen "+
 "oder in einen Code-Block, damit sie nicht ausgeführt werden.\n"+
 "6. Erfinde keine Befehle. Nur die oben gelisteten existieren.\n"+
-"7. Behaupte NIE, eine Aktion sei gelungen. Du siehst das Ergebnis nicht. "+
+"7. Erfinde NIEMALS Rufnummern. Sagt der Meister „ruf Papa an“, sende "+
+"[[anrufen:Papa]] mit dem NAMEN – die App schlaegt die Nummer in den Kontakten "+
+"nach. Eine Nummer schreibst du nur, wenn der Meister sie selbst genannt hat.\n"+
+"8. Behaupte NIE, eine Aktion sei gelungen. Du siehst das Ergebnis nicht. "+
 "Schreibe 'Ich öffne YouTube, Meister.' und haenge den Befehl an – die App meldet "+
 "selbst, ob es geklappt hat. Kein 'erfolgreich geändert', kein 'wurde geöffnet'.\n"+
-"8. Fuer Apps nimm [[starte:Name]], NICHT [[apps]]. [[apps]] listet nur auf und "+
+"9. Fuer Apps nimm [[starte:Name]], NICHT [[apps]]. [[apps]] listet nur auf und "+
 "ist fast nie gemeint.\n"+
-"9. Erfinde NIEMALS Messwerte. Akkustand, Speicherplatz, Netz, Uhrzeit, Dateilisten "+
+"10. Erfinde NIEMALS Messwerte. Akkustand, Speicherplatz, Netz, Uhrzeit, Dateilisten "+
 "und Wetter kennst du nicht aus dem Kopf. Sende den passenden Befehl und schreibe dazu "+
 "nur einen kurzen Satz wie 'Einen Moment, Meister.' – die App haengt die echten Werte "+
 "selbst an. Nenne keine eigenen Zahlen.\n"+
@@ -1233,6 +1236,10 @@ function directDevice(text){const q=' '+text.toLowerCase()+' ',h=(...w)=>w.some(
   einstellungen:'einstellungen',kamera:'kamera',galerie:'galerie',fotos:'fotos',
   rechner:'rechner',uhr:'uhr',wecker:'uhr',kalender:'kalender',musik:'spotify'};
 
+ // "Ruf Papa an" – Name direkt weitergeben, damit nichts erfunden wird
+ const anruf=text.match(/^\s*(?:jarvis[,\s]*)?(?:ruf(?:e)?|telefonier(?:e)?\s+mit|wähl(?:e)?)\s+(?:bitte\s+)?(?:mal\s+)?(.+?)\s*(?:\ban\b|\bauf\b)?\s*$/i);
+ if(anruf){const wen=anruf[1].replace(/\s+an$/i,'').replace(/[.!?,]+$/,'').trim();
+  if(wen)return['anrufen',wen];}
  if(h('speicher das bild','bild speichern','bild sichern'))return['bildspeichern',''];
  if(h('was siehst du','schau mal','sieh dir an','beschreibe was du siehst','was ist das'))return['sehen',''];
  // Kamera zuerst – „mach ein Foto“ ist Aufnahme, kein Bildwunsch
@@ -1311,6 +1318,7 @@ async function handle(txt){txt=(txt||'').trim();
   txt=(txt||'Fasse den Inhalt dieser Datei zusammen.')+
    '\n\n--- Inhalt von "'+a.name+'" ---\n'+a.text;
  }else add('u',txt);
+ letzteFrage=txt;
  const sc=settingsCommand(txt);if(sc!==null){if(sc){add('j',sc);speak(sc);}return;}
  const dv=directDevice(txt);
  if(dv){const r=await deviceCmd(dv[0],dv[1]);if(r){add('j',r);speak(r);}return;}
@@ -1550,7 +1558,8 @@ async function selfUpdate(url){
   const html=await r.text();
   if(html.length<5000||html.indexOf('J.A.R.V.I.S')<0)return'Die geladene Datei sieht nicht nach Jarvis aus – Abbruch.';
   const m=html.match(/APP_VERSION='([^']+)'/);
-  const res=ND.writeFile('/sdcard/Jarvis/index.html',html);
+  const res=ND.updateInterface?ND.updateInterface(html)
+   :ND.writeFile('/sdcard/Jarvis/index.html',html);
   save('updurl',u);
   return'Version '+(m?m[1]:'?')+' installiert ('+Math.round(html.length/1024)+' kB). '+res+
    '  Sag „neu starten“, um sie zu laden, Meister.';}
@@ -1578,6 +1587,55 @@ function kappen(text,maxZeilen,was){
   '\n… und '+(z.length-maxZeilen)+' weitere '+(was||'Zeilen')+
   '. Frag nach einem Namen, dann suche ich gezielt.';}
 
+/** Sieht der Wert wie eine echte Rufnummer aus? */
+function istNummer(v){const z=String(v||'').replace(/[^+0-9]/g,'');
+ return z.length>=6&&/^[+0-9][0-9]{5,}$/.test(z);}
+
+/**
+ * Anruf mit Namensaufloesung.
+ * Grund: Modelle erfinden Rufnummern, wenn sie eine brauchen. Es wurde
+ * tatsaechlich eine erfundene Nummer gewaehlt. Darum: Namen werden in den
+ * Kontakten nachgeschlagen, und was weder Name noch plausible Nummer ist,
+ * wird nicht gewaehlt.
+ */
+/** Letzte Nachricht des Meisters – damit gepruefte werden kann, ob eine
+ *  Rufnummer wirklich von ihm stammt und nicht vom Modell erfunden wurde. */
+let letzteFrage='';
+function ziffernNur(t){return String(t||'').replace(/[^0-9]/g,'');}
+
+async function anrufen(val){
+ const v=String(val||'').trim();
+ if(!v)return'Wen soll ich anrufen, Meister?';
+ // Nummer aus dem Text ziehen: "die 030 123 4567 an" -> 0301234567
+ const gefunden=v.match(/[+]?[0-9][0-9\s\-\/().]{4,}/);
+ const nr=gefunden?gefunden[0].replace(/[^+0-9]/g,''):'';
+ if(nr&&istNummer(nr)){
+  // Sicherung: die Nummer muss vom Meister kommen, nicht vom Modell.
+  // Genau hier lag der Vorfall - eine frei erfundene Nummer wurde gewaehlt.
+  if(ziffernNur(letzteFrage).indexOf(ziffernNur(nr))<0)
+   return'Die Nummer '+nr+' hast du mir nicht genannt, Meister, und in deinen '+
+    'Kontakten steht sie auch nicht. Ich wähle sie nicht. Nenne mir den Namen '+
+    'aus den Kontakten oder die Nummer selbst.';
+  return ND.call(nr);}
+ // kein Nummernformat -> als Name behandeln
+ if(!ND||!ND.findContact)
+  return'Ich kenne die Nummer von "'+v+'" nicht, Meister. Bitte nenne sie mir.';
+ const roh=ND.findContact(v);
+ if(roh==='KEIN_RECHT')
+  return'Ich darf die Kontakte nicht lesen, Meister. Einstellungen, Apps, Jarvis, '+
+   'Berechtigungen, Kontakte erlauben.';
+ if(String(roh).startsWith('FEHLER'))return'Kontaktsuche fehlgeschlagen: '+roh;
+ const treffer=String(roh||'').split('\n').filter(Boolean)
+  .map(z=>{const i=z.lastIndexOf('|');return{name:z.slice(0,i),nr:z.slice(i+1)};});
+ if(!treffer.length)
+  return'Ich finde keinen Kontakt namens "'+v+'", Meister.';
+ if(treffer.length===1)
+  return ND.call(treffer[0].nr)+'  ('+treffer[0].name+')';
+ // mehrere: nichts waehlen, nachfragen
+ return'Mehrere Kontakte passen auf "'+v+'", Meister:\n'+
+  treffer.slice(0,8).map(t=>'• '+t.name+' – '+t.nr).join('\n')+
+  '\nSag mir, welchen ich anrufen soll.';}
+
 async function deviceCmd(cmd,val){
  if(!devOn)return'Geräte-Zugriff ist ausgeschaltet (Einstellungen).';
  // --- In der APK: echter Systemzugriff über die native Brücke ---
@@ -1592,7 +1650,7 @@ async function deviceCmd(cmd,val){
   case 'apps': return kappen(ND.listApps(),25,'Apps');
   case 'starte': return ND.launchApp(val||'');
   case 'befehl': case 'shell': return ND.exec(val||'');
-  case 'anrufen': return ND.call(val||'');
+  case 'anrufen': return await anrufen(val||'');
   case 'sms': {const i=(val||'').indexOf('|');
    if(i<0)return'Format: [[sms:0123456|Text]]';
    return ND.sendSms(val.slice(0,i).trim(),val.slice(i+1));}
@@ -1636,7 +1694,9 @@ async function deviceCmd(cmd,val){
   case 'taschenlampe': case 'licht': return await setTorch(val==='an'||val==='on');
   case 'vibrieren': if(navigator.vibrate){navigator.vibrate([200,100,200]);return'Vibration, Meister.';}return'Vibration nicht verfügbar.';
   case 'oeffnen': case 'open': case 'web': {let u=val||'';if(!/^[a-z]+:/i.test(u))u='https://'+u;window.open(u,'_blank');return'Geöffnet: '+u;}
-  case 'anrufen': location.href='tel:'+encodeURIComponent(val||'');return'Wähle '+val+' …';
+  case 'anrufen': {if(!istNummer(val))
+    return'Ich kenne die Nummer von "'+val+'" nicht, Meister. In der App schlage ich Namen in den Kontakten nach.';
+   location.href='tel:'+encodeURIComponent(val);return'Wähle '+val+' …';}
   case 'sms': location.href='sms:'+encodeURIComponent(val||'');return'SMS an '+val+' …';
   case 'karte': window.open('https://maps.google.com/?q='+encodeURIComponent(val||''),'_blank');return'Karte geöffnet.';
   case 'kopieren': await navigator.clipboard.writeText(val||'');return'In die Zwischenablage kopiert.';
