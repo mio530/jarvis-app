@@ -320,7 +320,7 @@ border-radius:10px;padding:10px;font-size:10px;line-height:1.45;white-space:pre-
 </div>
 
 <script>
-const APP_VERSION='2.4';
+const APP_VERSION='2.6';
 // ============================================================
 //  DIAGNOSE – Protokoll, Absturz-Erfassung, Selbst-Update
 // ============================================================
@@ -399,7 +399,9 @@ const SYS_BASE="Du bist J.A.R.V.I.S., ein höflicher, wortkarger KI-Assistent im
 "[[taschenlampe:an]] [[taschenlampe:aus]] – Taschenlampe\n"+
 "[[vibrieren]] – Handy vibrieren lassen\n"+
 "[[status]] – Akku, Speicher, Netz auslesen\n"+
-"[[oeffnen:youtube.com]] – Webseite/App öffnen\n"+
+"[[oeffnen:youtube.com]] – öffnet die App, wenn es eine gibt, sonst die Webseite\n"+
+"[[web:youtube.com]] – erzwingt den Browser, auch wenn eine App da ist\n"+
+"[[starte:Spotify]] – App direkt nach Namen starten (bevorzugt bei App-Wünschen)\n"+
 "[[anrufen:0123456]] – Anruf starten · [[sms:0123456]] – SMS\n"+
 "[[karte:Berlin]] – Karte öffnen\n"+
 "[[kopieren:Text]] – in Zwischenablage · [[einfuegen]] – Zwischenablage lesen\n"+
@@ -1027,6 +1029,16 @@ function coolDown(pv,min){cooldown[pv]=Date.now()+min*60000;
  logPush('LIMIT',[pv+' pausiert fuer '+min+' Min.']);}
 function hasKey(pv){const c=MODELS[pv];return c&&(!c.keyStore||!!store(c.keyStore));}
 
+/** Kann dieser Anbieter hier ueberhaupt laufen?
+ *  Gemini Nano gibt es nur in Chrome mit eingeschalteter Auf-Gerät-KI, in der
+ *  Android-App nie. Ollama braucht einen Rechner im gleichen Netz. Ohne diese
+ *  Pruefung landen beide in der Auswahl, scheitern jedes Mal und erzeugen bei
+ *  jeder Frage eine Wechselmeldung. */
+function verfuegbar(pv){const c=MODELS[pv];if(!c)return false;
+ if(c.kind==='chrome')return('LanguageModel'in self);
+ if(c.kind==='ollama')return!!store(c.keyStore);
+ return true;}
+
 /** Warum hat ein Anbieter abgelehnt? In verstaendlichem Deutsch. */
 function kiGrund(status,msg){
  const m=String(msg||'').toLowerCase();
@@ -1047,9 +1059,9 @@ async function callLLM(text){
  let plan,tierUsed='';
  if(autoOn){
   const tier=taskTier(text);tierUsed=tier;
-  plan=TIERS[tier].filter(x=>MODELS[x[0]]&&hasKey(x[0]));
+  plan=TIERS[tier].filter(x=>MODELS[x[0]]&&hasKey(x[0])&&verfuegbar(x[0]));
   // Bei Programmieraufgaben zaehlt die Code-Leiter, nicht der eingestellte Anbieter
-  if(tier!=='code'){const pref=plan.findIndex(x=>x[0]===provider);
+  if(tier!=='code'&&verfuegbar(provider)){const pref=plan.findIndex(x=>x[0]===provider);
    if(pref>0)plan.unshift(plan.splice(pref,1)[0]);}
   // Festgehaltenes Modell nach vorn, der Rest bleibt als Notausgang
   if(lockOn&&lockPv&&lockModel&&MODELS[lockPv]&&hasKey(lockPv)&&tier!=='code'){
@@ -1220,15 +1232,7 @@ function directDevice(text){const q=' '+text.toLowerCase()+' ',h=(...w)=>w.some(
   gmail:'gmail',mail:'gmail',ig:'instagram',pf:'einstellungen',
   einstellungen:'einstellungen',kamera:'kamera',galerie:'galerie',fotos:'fotos',
   rechner:'rechner',uhr:'uhr',wecker:'uhr',kalender:'kalender',musik:'spotify'};
- const oeff=text.match(/^\s*(?:jarvis[,\s]*)?(?:öffne|oeffne|starte|start|zeig(?:e)?\s+mir|geh\s+(?:auf|zu)|mach\s+(?:mir\s+)?(?:mal\s+)?)\s+(?:die\s+|den\s+|das\s+)?(.+?)\s*(?:\bapp\b|\bauf\b)?\s*$/i);
- if(oeff){
-  let ziel=oeff[1].trim().replace(/\s+app$/i,'').replace(/[.!?]+$/,'');
-  const k=ziel.toLowerCase();
-  if(KURZ[k])ziel=KURZ[k];
-  // sieht es wie eine Adresse aus? dann Browser, sonst App
-  if(/^(https?:\/\/|www\.)/i.test(ziel)||/\.[a-z]{2,}($|\/)/i.test(ziel))
-   return['oeffnen',ziel];
-  if(ziel.length>1&&ziel.length<40&&!/\s{2,}/.test(ziel))return['starte',ziel];}
+
  if(h('speicher das bild','bild speichern','bild sichern'))return['bildspeichern',''];
  if(h('was siehst du','schau mal','sieh dir an','beschreibe was du siehst','was ist das'))return['sehen',''];
  // Kamera zuerst – „mach ein Foto“ ist Aufnahme, kein Bildwunsch
@@ -1254,6 +1258,29 @@ function directDevice(text){const q=' '+text.toLowerCase()+' ',h=(...w)=>w.some(
  if(h('absturz','crash'))return['absturz',''];
  if(h('selbst update','selbstupdate','aktualisiere dich','update dich','neue version laden'))return['selbstupdate',''];
  if(h('neu starten','neustart','lade dich neu'))return['neustart',''];
+ // App-Start und Adressen ZULETZT pruefen: sonst schluckt der App-Start
+ // Saetze wie "mach das Licht an", weil sie mit "mach" beginnen.
+ const oeff=text.match(/^\s*(?:jarvis[,\s]*)?(?:öffne|oeffne|starte|start|zeig(?:e)?\s+mir|geh(?:e)?\s+(?:auf|zu)|mach(?:\s+mir)?(?:\s+mal)?)\s+(?:die\s+|den\s+|das\s+)?(.+?)\s*$/i);
+ if(oeff){
+  // Sagt der Meister ausdruecklich "im Browser", dann keine App
+  const willWeb=/browser|webseite|website|internetseite|im netz|opera|chrome|firefox|safari/i.test(q);
+  let ziel=oeff[1]
+   .replace(/^(?:webseite|website|internetseite|seite|homepage)\s+(?:von\s+|zu\s+)?/i,'')
+   .replace(/\s+(?:im|in|mit|per|über|ueber)\s+(?:dem\s+|der\s+)?(?:browser|opera|chrome|firefox|safari|internet|netz)\b.*$/i,'')
+   .replace(/\s+app\b.*$/i,'').replace(/\s+auf$/i,'')
+   .replace(/[.!?,;:]+$/,'').trim();
+  const k=ziel.toLowerCase();
+  if(KURZ[k])ziel=KURZ[k];
+  const istAdresse=/^(https?:\/\/|www\.)/i.test(ziel)||/\.[a-z]{2,}($|\/)/i.test(ziel);
+  if(willWeb){
+   if(istAdresse)return['web',ziel];
+   // "öffne YouTube im Browser": bekannte Seite -> Adresse, sonst Suche
+   const treffer=Object.keys(APP_ADRESSE).filter(d=>d===k)[0];
+   return['web',treffer?treffer+'.com'
+    :'https://www.google.com/search?q='+encodeURIComponent(ziel)];}
+  if(istAdresse)return['oeffnen',ziel];
+  if(ziel.length>1&&ziel.length<40&&!/\s{2,}/.test(ziel))return['starte',ziel];}
+
  return null;}
 
 async function handle(txt){txt=(txt||'').trim();
@@ -1522,6 +1549,20 @@ async function selfUpdate(url){
   return'Version '+(m?m[1]:'?')+' installiert ('+Math.round(html.length/1024)+' kB). '+res+
    '  Sag „neu starten“, um sie zu laden, Meister.';}
  catch(e){return'Update fehlgeschlagen: '+e;}}
+/** Bekannte Adressen den zugehoerigen Apps zuordnen. "oeffne youtube.com"
+ *  soll die App starten, nicht die Webseite - danach gefragt hatte niemand. */
+const APP_ADRESSE={youtube:'youtube',instagram:'instagram',tiktok:'tiktok',
+ whatsapp:'whatsapp',spotify:'spotify',twitch:'twitch',facebook:'facebook',
+ twitter:'twitter',x:'twitter',reddit:'reddit',amazon:'amazon',github:'github',
+ telegram:'telegram',discord:'discord',netflix:'netflix',ebay:'kleinanzeigen',
+ kleinanzeigen:'kleinanzeigen',duolingo:'duolingo',gmail:'gmail',
+ booking:'booking',paypal:'paypal',pinterest:'pinterest',snapchat:'snapchat',
+ linkedin:'linkedin',deezer:'deezer',disneyplus:'disney',primevideo:'prime video'};
+function appAusAdresse(u){
+ const m=String(u||'').toLowerCase().match(/(?:^|\/\/|\.)([a-z0-9-]+)\.(?:com|de|tv|org|net|app|io|me)\b/);
+ if(!m)return'';
+ return APP_ADRESSE[m[1]]||'';}
+
 /** Lange Listen kuerzen. Ungekappt flutet z. B. die App-Liste den Chat
  *  und verdraengt den Gespraechsverlauf aus dem Modell-Gedaechtnis. */
 function kappen(text,maxZeilen,was){
@@ -1555,7 +1596,13 @@ async function deviceCmd(cmd,val){
   case 'kopieren': return ND.copy(val||'');
   case 'einfuegen': return ND.paste();
   case 'melden': case 'benachrichtigung': return ND.notify(val||'Meldung');
-  case 'oeffnen': case 'open': {let u=val||'';if(!/^[a-z]+:/i.test(u))u='https://'+u;return ND.openUrl(u);}
+  case 'oeffnen': case 'open': {
+   // Erst die App versuchen, nur wenn es keine gibt in den Browser
+   const app=appAusAdresse(val);
+   if(app){const r=ND.launchApp(app);
+    if(r&&!/nicht gefunden|fehler/i.test(r))return r;}
+   let u=val||'';if(!/^[a-z]+:/i.test(u))u='https://'+u;return ND.openUrl(u);}
+  case 'web': {let u=val||'';if(!/^[a-z]+:/i.test(u))u='https://'+u;return ND.openUrl(u);}
   case 'karte': return ND.openUrl('https://maps.google.com/?q='+encodeURIComponent(val||''));
   case 'logcat': return ND.logcat(parseInt(val)||120);
   case 'absturz': return ND.lastCrash();
@@ -1582,7 +1629,7 @@ async function deviceCmd(cmd,val){
    return await askVision(img,'Beschreibe kurz und präzise auf Deutsch, was auf diesem Bild zu sehen ist.');}
   case 'taschenlampe': case 'licht': return await setTorch(val==='an'||val==='on');
   case 'vibrieren': if(navigator.vibrate){navigator.vibrate([200,100,200]);return'Vibration, Meister.';}return'Vibration nicht verfügbar.';
-  case 'oeffnen': case 'open': {let u=val||'';if(!/^[a-z]+:/i.test(u))u='https://'+u;window.open(u,'_blank');return'Geöffnet: '+u;}
+  case 'oeffnen': case 'open': case 'web': {let u=val||'';if(!/^[a-z]+:/i.test(u))u='https://'+u;window.open(u,'_blank');return'Geöffnet: '+u;}
   case 'anrufen': location.href='tel:'+encodeURIComponent(val||'');return'Wähle '+val+' …';
   case 'sms': location.href='sms:'+encodeURIComponent(val||'');return'SMS an '+val+' …';
   case 'karte': window.open('https://maps.google.com/?q='+encodeURIComponent(val||''),'_blank');return'Karte geöffnet.';
@@ -1636,7 +1683,8 @@ const GATE={
  sehen:/sieh|schau|siehst|kamera|erkenn|was ist das/,
  taschenlampe:/licht|lampe|taschenlampe|leucht|dunkel/,
  starte:/starte|öffne|\bapp\b|zeig/,
- oeffnen:/öffne|starte|zeig|webseite|browser|\blink\b|\bseite\b|internet/,
+ oeffnen:/öffne|starte|zeig|webseite|browser|\blink\b|\bseite\b|internet|geh\b|mach\b/,
+ web:/öffne|starte|zeig|webseite|browser|\blink\b|\bseite\b|internet|geh\b/,
  // Befehle, die etwas ausgeben: nur auf ausdruecklichen Wunsch, sonst
  // wiederholt sich die Ausgabe bei jeder Rueckfrage darueber
  status:/akku|batterie|speicher|netz|status|zustand|auslesen|ermittel|wie viel|wieviel|systeminfo|gerät/,
@@ -1667,7 +1715,7 @@ function unmaskCode(s,keep){return s.replace(/@@CODE(\d+)@@/g,(m,i)=>keep[+i]);}
 const BEFEHLE=['theme','speak','voice','provider','clear','verlauf','auto','direkt','sync',
  'bild','sehen','foto','taschenlampe','licht','vibrieren','status','oeffnen','anrufen','sms',
  'karte','kopieren','einfuegen','kontakt','datei','speichern','melden','teilen','wachhalten',
- 'dateien','lesen','schreiben','loeschen','vollzugriff','apps','starte','befehl','shell',
+ 'dateien','lesen','schreiben','loeschen','vollzugriff','apps','starte','befehl','shell','web',
  'diagnose','logcat','absturz','selbstupdate','neustart','appinfo','bildspeichern'];
 
 /** Toleranter Befehlsleser.
@@ -1765,12 +1813,14 @@ function refreshProviderUI(){const c=MODELS[provider];
  if($('keystat')){
   const mit=[],ohne=[];
   Object.keys(MODELS).forEach(k=>{if(MODELS[k].onDevice)return;
-   (hasKey(k)?mit:ohne).push(MODELS[k].label);});
+   (hasKey(k)&&verfuegbar(k)?mit:ohne).push(MODELS[k].label);});
   $('keystat').textContent=autoOn
    ?('Jarvis wählt selbst aus: '+(mit.length?mit.join(', '):'– noch kein Key –')+
      (ohne.length?('  ·  ohne Key: '+ohne.join(', ')):''))
    :'';}
- $('phint').textContent=c.onDevice?'Läuft direkt auf deinem Gerät, komplett offline und privat.'
+ $('phint').textContent=c.kind==='chrome'&&!verfuegbar(provider)
+  ?'Hier nicht verfügbar – Gemini Nano gibt es nur in Chrome mit eingeschalteter Auf-Gerät-KI, nicht in der App.'
+  :c.onDevice?'Läuft direkt auf deinem Gerät, komplett offline und privat.'
   :(c.coder?'Kostenlos – und stark beim Programmieren.':'Kostenlos – nur ein Gratis-Key nötig.');
  if($('info'))$('info').textContent=(NATIVE?'Android-App':'Browser')+' · '+c.label;}
 function setProvider(p){if(!MODELS[p])return;provider=p;save('provider',p);refreshProviderUI();}
