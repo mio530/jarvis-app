@@ -28,6 +28,7 @@ import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.telephony.SmsManager;
 import android.webkit.GeolocationPermissions;
+import android.webkit.ValueCallback;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
@@ -62,6 +63,12 @@ import java.util.Locale;
  *   AndroidDevice – Dateien, Apps, Anrufe, SMS, Taschenlampe, Shell, ...
  */
 public class MainActivity extends AppCompatActivity {
+
+    /** Laeuft ein Dateidialog aus der Oberflaeche, wartet hier die Rueckmeldung.
+     *  Ohne onShowFileChooser tut ein Datei-Feld in einer WebView GAR NICHTS -
+     *  beim Antippen passiert einfach nichts. */
+    private ValueCallback<Uri[]> dateiRueckmeldung;
+    private static final int DATEI_WAHL = 8021;
 
     private WebView web;
     private TextToSpeech tts;
@@ -175,6 +182,32 @@ public class MainActivity extends AppCompatActivity {
             public void onGeolocationPermissionsShowPrompt(String origin,
                     GeolocationPermissions.Callback callback) {
                 callback.invoke(origin, true, false);
+            }
+
+            /** Datei- und Bildauswahl aus der Oberflaeche. */
+            @Override
+            public boolean onShowFileChooser(WebView view,
+                    ValueCallback<Uri[]> callback, FileChooserParams params) {
+                // Einen noch offenen Dialog sauber beenden
+                if (dateiRueckmeldung != null) dateiRueckmeldung.onReceiveValue(null);
+                dateiRueckmeldung = callback;
+                try {
+                    Intent i = params.createIntent();
+                    if (i == null) {
+                        i = new Intent(Intent.ACTION_GET_CONTENT);
+                        i.addCategory(Intent.CATEGORY_OPENABLE);
+                        i.setType("*/*");
+                    }
+                    i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,
+                            params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE);
+                    startActivityForResult(Intent.createChooser(i, "Datei auswaehlen"), DATEI_WAHL);
+                    return true;
+                } catch (Exception e) {
+                    dateiRueckmeldung = null;
+                    main.post(() -> Toast.makeText(MainActivity.this,
+                            "Dateiauswahl nicht moeglich: " + e, Toast.LENGTH_LONG).show());
+                    return false;
+                }
             }
         });
 
@@ -604,6 +637,33 @@ public class MainActivity extends AppCompatActivity {
         @Override public void onEndOfSpeech() {}
         @Override public void onPartialResults(Bundle p) {}
         @Override public void onEvent(int e, Bundle p) {}
+    }
+
+    @Override
+    /** Ergebnis des Dateidialogs an die Oberflaeche zurueckgeben.
+     *  Wird das vergessen, bleibt das Datei-Feld nach dem Abbrechen fuer
+     *  immer blockiert und laesst sich nicht erneut oeffnen. */
+    @Override
+    protected void onActivityResult(int code, int result, Intent data) {
+        if (code == DATEI_WAHL) {
+            Uri[] treffer = null;
+            if (result == RESULT_OK && data != null) {
+                if (data.getClipData() != null) {
+                    int n = data.getClipData().getItemCount();
+                    treffer = new Uri[n];
+                    for (int i = 0; i < n; i++)
+                        treffer[i] = data.getClipData().getItemAt(i).getUri();
+                } else if (data.getData() != null) {
+                    treffer = new Uri[]{ data.getData() };
+                }
+            }
+            if (dateiRueckmeldung != null) {
+                dateiRueckmeldung.onReceiveValue(treffer);
+                dateiRueckmeldung = null;
+            }
+            return;
+        }
+        super.onActivityResult(code, result, data);
     }
 
     @Override

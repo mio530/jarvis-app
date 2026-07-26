@@ -320,7 +320,7 @@ border-radius:10px;padding:10px;font-size:10px;line-height:1.45;white-space:pre-
 </div>
 
 <script>
-const APP_VERSION='2.6';
+const APP_VERSION='2.7';
 // ============================================================
 //  DIAGNOSE – Protokoll, Absturz-Erfassung, Selbst-Update
 // ============================================================
@@ -1236,8 +1236,14 @@ function directDevice(text){const q=' '+text.toLowerCase()+' ',h=(...w)=>w.some(
  if(h('speicher das bild','bild speichern','bild sichern'))return['bildspeichern',''];
  if(h('was siehst du','schau mal','sieh dir an','beschreibe was du siehst','was ist das'))return['sehen',''];
  // Kamera zuerst – „mach ein Foto“ ist Aufnahme, kein Bildwunsch
- const kamera=h('mach ein foto','foto machen','nimm ein bild','fotografiere','mach ein selfie','selfie');
- if(kamera)return['foto',/front|selfie|mich/.test(q)?'front':''];
+ // „nimm ein Foto“ fehlte hier ganz – der Satz ging an die KI statt an die Kamera
+ const kamera=h('mach ein foto','mache ein foto','mach mir ein foto','mache mir ein foto','foto machen','nimm ein foto','nimm ein bild',
+  'nimm ein selfie','mach ein selfie','selfie','fotografier','knips','schieß ein foto',
+  'schiess ein foto','foto von mir','bild von mir','foto aufnehmen','bild aufnehmen');
+ // „von mir“ heißt Frontkamera. „mach mir ein Foto“ dagegen nicht – da ist
+ // „mir“ nur der Empfänger, nicht das Motiv.
+ const vorne=/von mir\b|von uns\b|\bmich\b|selfie|selbst|frontkamera|front.?kamera|vordere kamera|nach vorne/.test(q);
+ if(kamera)return['foto',vorne?'front':''];
  // Bildwunsch: entweder mit Nomen (jedes Verb) oder mit eindeutigem Malverb
  const malN=q.match(/(?:^|\s)(?:male?n?|zeichne[nt]?|generiere|erzeuge|erstelle|entwirf|kreiere|mach)(?:\s+mir)?\s+(?:ein(?:e[nrms]?)?\s+)?((?:bild|foto|zeichnung|grafik|logo|illustration|gemälde|poster|wallpaper|hintergrundbild)\w*\b.*)/);
  const malV=q.match(/(?:^|\s)(?:male|malen|zeichne|zeichnen|illustriere|skizziere|mal\s+mir)\s+(?:mir\s+)?(?:(?:ein(?:e[nrms]?)?|der|die|das|den)\s+)?(.+)/);
