@@ -2,7 +2,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
-<title>J.A.R.V.I.S. v7</title>
+<title>J.A.R.V.I.S.</title>
+<meta name="theme-color" content="#05080f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="JARVIS">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
 <style>
 :root{--bg:#05080f;--bg2:#070c16;--panel:rgba(10,18,32,.72);--line:#123650;--cyan:#22d3ee;--cyan2:#38bdf8;
 --txt:#d6f2fb;--dim:#5f7f92;--ok:#34d399;--warn:#f59e0b;--red:#f87171;--glow:0 0 18px rgba(var(--rgb),.55);
@@ -25,6 +33,14 @@ header .logo{width:26px;height:26px}
 .clock span{display:block;font-size:10px;color:var(--dim);letter-spacing:1px;text-transform:uppercase}
 .gear{background:none;border:0;color:var(--dim);font-size:20px;padding:4px 2px}
 .wrap{max-width:760px;margin:0 auto;padding:12px 12px 8px}
+@media (min-width:850px){
+ .wrap{max-width:1100px;display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+ .panel+.panel{margin-top:0}
+ .wrap>.panel:nth-child(2){grid-row:span 2}      /* Reaktor bleibt gross */
+ #chatpanel{grid-column:1 / -1}
+ .reactor{width:min(34vw,300px);height:min(34vw,300px)}
+ .bar-in,footer .bar-in{max-width:1100px}
+}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;
 box-shadow:0 0 0 1px rgba(var(--rgb),.04),0 8px 30px rgba(0,0,0,.4)}
 .panel+.panel{margin-top:12px}
@@ -104,6 +120,19 @@ background:var(--field);border:1px solid var(--line2);color:var(--cyan2);box-sha
 border-radius:18px 18px 0 0;padding:16px 16px calc(18px + env(safe-area-inset-bottom));
 transform:translateY(102%);transition:transform .22s ease;max-height:88vh;overflow-y:auto}
 #settings.open{transform:translateY(0)}
+/* Verlauf */
+#histpanel{position:fixed;left:0;top:0;bottom:0;width:min(84vw,330px);z-index:11;background:var(--bg);
+border-right:1px solid var(--line);padding:calc(14px + env(safe-area-inset-top)) 14px 14px;
+transform:translateX(-102%);transition:transform .22s ease;overflow-y:auto}
+#histpanel.open{transform:translateX(0)}
+#histpanel h3{margin:0 0 10px;color:var(--cyan2);letter-spacing:2px;font-size:14px;text-transform:uppercase}
+.hrow{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;
+padding:10px;margin-top:8px;background:var(--panel)}
+.hrow.cur{border-color:var(--cyan);box-shadow:0 0 0 1px rgba(var(--rgb),.25)}
+.hrow .ht{flex:1;min-width:0;font-size:13px;line-height:1.3;overflow:hidden}
+.hrow .ht b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hrow .ht small{color:var(--dim);font-size:10px}
+.hrow .hx{background:none;border:0;color:var(--dim);font-size:17px;padding:2px 4px;flex:0 0 auto}
 #settings h3{margin:0 0 6px;color:var(--cyan2);letter-spacing:2px;font-size:14px;text-transform:uppercase}
 .row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid #0f2233}
 .row:last-child{border-bottom:0}
@@ -117,6 +146,7 @@ label.lbl{font-size:12px;color:var(--dim);display:block;margin-top:10px;letter-s
 
 <header>
 <svg class="logo" viewBox="0 0 512 512"><circle cx="256" cy="256" r="150" fill="none" stroke="#22d3ee" stroke-width="16" opacity=".35"/><circle cx="256" cy="256" r="100" fill="none" stroke="#22d3ee" stroke-width="24"/><circle cx="256" cy="256" r="40" fill="#22d3ee"/></svg>
+<button class="gear" id="hist" title="Verlauf" style="margin:0 0 0 2px">&#9776;</button>
 <span class="brand">J.A.R.V.I.S.</span>
 <div class="clock"><b id="clk" class="mono">--:--:--</b><span id="dte">—</span></div>
 <button class="gear" id="gear" title="Einstellungen">&#9881;</button>
@@ -151,7 +181,7 @@ label.lbl{font-size:12px;color:var(--dim);display:block;margin-top:10px;letter-s
 </div>
 </div>
 
-<div class="panel">
+<div class="panel" id="chatpanel">
 <p class="ptitle">Konversation</p>
 <div id="chat"></div>
 </div>
@@ -177,6 +207,14 @@ label.lbl{font-size:12px;color:var(--dim);display:block;margin-top:10px;letter-s
 </div></footer>
 
 <input type="file" id="filein" style="display:none">
+
+<div id="histpanel">
+<h3>Chat-Verlauf</h3>
+<button class="mini" id="newchat" style="border-color:var(--cyan);color:var(--cyan)">&#10133; Neue Unterhaltung</button>
+<div id="histlist"></div>
+<p class="tip" id="histinfo"></p>
+</div>
+
 <div id="backdrop"></div>
 <div id="settings">
 <h3>Einstellungen</h3>
@@ -185,6 +223,7 @@ label.lbl{font-size:12px;color:var(--dim);display:block;margin-top:10px;letter-s
 <select id="theme"></select>
 </div>
 <div style="padding:12px 0;border-bottom:1px solid #0f2233">
+<div class="row" style="padding-top:0"><span>&#129504; Auto-Modell (w&#228;hlt selbst &amp; weicht bei Limits aus)</span><div class="sw" id="sw-auto"></div></div>
 <label class="lbl">KI-Anbieter (viele kostenlos)</label>
 <select id="provider"></select>
 <label class="lbl" id="keylbl">API-Key</label>
@@ -209,11 +248,50 @@ label.lbl{font-size:12px;color:var(--dim);display:block;margin-top:10px;letter-s
 <button class="mini" id="vtest" style="border-color:#1c4a6b">&#9654; Stimme testen</button>
 </div>
 <button class="mini" id="clear">Neuer Chat</button>
+
+<div style="padding:12px 0;border-top:1px solid #0f2233;margin-top:6px">
+<label class="lbl">&#9729; Konto &amp; Ger&#228;te-Sync</label>
+<input class="mini" id="email" type="email" placeholder="deine@email.de  (Kennung)">
+<input class="mini" id="ghtok" type="password" placeholder="GitHub-Token mit Recht &#8222;gist&#8220;">
+<div class="row"><span>Automatisch synchronisieren</span><div class="sw" id="sw-sync"></div></div>
+<button class="mini" id="syncup" style="border-color:var(--line2)">&#11014; Hochladen</button>
+<button class="mini" id="syncdown" style="border-color:var(--line2)">&#11015; Von anderem Ger&#228;t laden</button>
+<p class="tip" id="syncinfo"></p>
+</div>
+
+<div style="padding:12px 0;border-top:1px solid #0f2233;margin-top:6px">
+<label class="lbl">&#128295; Diagnose &amp; Wartung</label>
+<pre id="logbox" style="max-height:170px;overflow:auto;background:var(--field);border:1px solid var(--line2);
+border-radius:10px;padding:10px;font-size:10px;line-height:1.45;white-space:pre-wrap;margin:6px 0 0">(kein Protokoll)</pre>
+<button class="mini" id="diagcopy" style="border-color:var(--line2)">&#128203; Bericht kopieren</button>
+<button class="mini" id="diaglogcat" style="border-color:var(--line2)">&#128220; System-Protokoll (App)</button>
+<button class="mini" id="diagupdate" style="border-color:var(--line2)">&#11015; Selbst-Update aus GitHub</button>
+<button class="mini" id="diagreload" style="border-color:var(--line2)">&#8635; Neu starten</button>
+<p class="tip" id="verline"></p>
+</div>
+
 <div class="row"><span class="s" id="info"></span></div>
 <p class="tip">Freih&#228;ndig wie Alexa: Sprachmodus + Weckwort an, dann z.B. &#8222;Jarvis, wie wird das Wetter?&#8220;. Anbieter per Sprache wechseln: &#8222;Jarvis, nutze Gemini&#8220;, &#8222;&#8230; nutze Groq&#8220;, &#8222;&#8230; auf Ger&#228;t&#8220;.</p>
 </div>
 
 <script>
+const APP_VERSION='1.5';
+// ============================================================
+//  DIAGNOSE – Protokoll, Absturz-Erfassung, Selbst-Update
+// ============================================================
+const LOG=[];
+function logPush(kind,parts){
+ const ts=new Date().toTimeString().slice(0,8);
+ let s='';try{s=parts.map(a=>typeof a==='string'?a:JSON.stringify(a)).join(' ');}catch(e){s=String(parts);}
+ LOG.push(ts+' ['+kind+'] '+s.slice(0,600));
+ if(LOG.length>400)LOG.shift();
+ const box=document.getElementById('logbox');if(box)box.textContent=LOG.slice(-120).join('\n');}
+['log','warn','error'].forEach(k=>{const orig=console[k].bind(console);
+ console[k]=function(){logPush(k.toUpperCase(),[].slice.call(arguments));orig.apply(console,arguments);};});
+window.addEventListener('error',e=>logPush('JS-FEHLER',
+ [(e.message||'?')+'  @'+(e.filename||'').split('/').pop()+':'+(e.lineno||0)]));
+window.addEventListener('unhandledrejection',e=>logPush('PROMISE-FEHLER',[String(e.reason)]));
+
 const $=id=>document.getElementById(id), chat=$('chat'), t=$('t');
 const store=k=>localStorage.getItem('jarvis_'+k), save=(k,v)=>localStorage.setItem('jarvis_'+k,v);
 const NATIVE=!!window.AndroidVoice;
@@ -264,7 +342,9 @@ const SYS="Du bist J.A.R.V.I.S., ein höflicher, wortkarger KI-Assistent im Stil
 "[[theme:arc]] [[theme:rot]] [[theme:gold]] [[theme:gruen]] [[theme:violett]] [[theme:eis]] – Farbdesign ändern\n"+
 "[[speak:an]] [[speak:aus]] – Vorlesen\n[[voice:an]] [[voice:aus]] – Sprachmodus\n"+
 "[[provider:groq]] [[provider:gemini]] [[provider:openrouter]] [[provider:ondevice]] – KI-Anbieter wechseln\n"+
-"[[clear]] – Chat leeren\n\n"+
+"[[auto:an]] [[auto:aus]] – automatische Modellwahl\n"+
+"[[sync]] – Chats und Einstellungen mit anderen Geräten abgleichen\n"+
+"[[clear]] – neue Unterhaltung beginnen · [[verlauf]] – Chat-Verlauf zeigen\n\n"+
 "GERÄTE-ZUGRIFF – du steuerst echte Hardware:\n"+
 "[[sehen]] – Kamera aufnehmen UND beschreiben, was zu sehen ist\n"+
 "[[foto]] / [[foto:front]] – nur fotografieren\n"+
@@ -282,7 +362,14 @@ const SYS="Du bist J.A.R.V.I.S., ein höflicher, wortkarger KI-Assistent im Stil
 "[[lesen:/pfad/datei.txt]] – Datei lesen · [[schreiben:/pfad/datei.txt|Inhalt]] – Datei schreiben\n"+
 "[[loeschen:/pfad]] – Datei löschen · [[vollzugriff]] – Dateirechte anfordern\n"+
 "[[apps]] – installierte Apps · [[starte:spotify]] – App öffnen\n"+
-"[[befehl:ls /sdcard]] – Shell-Befehl ausführen\n\n"+
+"[[befehl:ls /sdcard]] – Shell-Befehl ausführen\n"+
+"DIAGNOSE (für Fehlersuche):\n"+
+"[[diagnose]] – Bericht mit Version, Einstellungen und Protokoll (wird kopiert)\n"+
+"[[logcat:150]] – System-Protokoll der App · [[absturz]] – letzter Absturzbericht\n"+
+"[[selbstupdate]] – neueste Oberfläche aus GitHub laden · [[neustart]] – neu laden\n"+
+"[[appinfo]] – Version und Herkunft der Oberfläche\n"+
+"Wenn der Meister von einem Fehler berichtet, nutze [[diagnose]] und bitte ihn, "+
+"den Bericht dem Entwickler zu zeigen.\n\n"+
 "Nutze diese Befehle aktiv, wenn der Meister etwas verlangt, das sie erfüllen. "+
 "Bestätige kurz und hänge den Befehl an. "+
 "Behaupte niemals, du könntest die Oberfläche oder das Gerät nicht steuern – du kannst es mit diesen Befehlen.";
@@ -483,57 +570,128 @@ function settingsCommand(text){const q=' '+text.toLowerCase().trim()+' ',h=(...w
  if(h('design','farbe','theme','aussehen','oberfläche','interface','look')){const t=themeFromText(q);
   if(t){applyTheme(t);return'Design geändert: '+THEMES[t].n+'.';}}
  if(h('andere stimme','stimme wechseln','wechsle die stimme','neue stimme')){nextVoice();return'Ich wechsle die Stimme, Meister.';}
+ if(h('auto modell an','automatik an','wähle selbst','such dir das modell')){setAuto(true);return'Auto-Modell an – ich wähle jetzt selbst, Meister.';}
+ if(h('auto modell aus','automatik aus','festes modell')){setAuto(false);return'Auto-Modell aus, Meister.';}
+ if(h('welches modell','was nutzt du gerade','welche ki nutzt du')){return lastUsed?('Zuletzt: '+lastUsed+', Meister.'):'Noch keine Anfrage in dieser Sitzung, Meister.';}
  if(h('nutze gemini','wechsle zu gemini','nutze google')){setProvider('gemini');return'Ich wechsle zu Gemini, Meister.';}
  if(h('nutze groq','wechsle zu groq')){setProvider('groq');return'Ich wechsle zu Groq, Meister.';}
  if(h('nutze openrouter','wechsle zu openrouter')){setProvider('openrouter');return'Ich wechsle zu OpenRouter, Meister.';}
  if(h('auf gerät','on device','gemini nano','lokale ki','offline ki')){setProvider('ondevice');return'Ich nutze jetzt die Auf-Gerät-KI, Meister.';}
  if(h('nutze ollama','wechsle zu ollama')){setProvider('ollama');return'Ich wechsle zu Ollama, Meister.';}
  if(h('nutze chatgpt','nutze openai','wechsle zu openai')){setProvider('openai');return'Ich wechsle zu OpenAI, Meister.';}
- if(h('neuer chat','chat löschen','chat leeren','verlauf löschen','neu anfangen')){chat.innerHTML='';history=[];return'Neuer Chat, Meister.';}
+ if(h('synchronisiere','sync hoch','hochladen','abgleichen')){syncPush().then(r=>add('j',r));return'Ich synchronisiere, Meister.';}
+ if(h('sync laden','vom anderen gerät','chats laden','herunterladen')){syncPull().then(r=>add('j',r));return'Ich lade den Stand, Meister.';}
+ if(h('zeig den verlauf','chat verlauf','meine chats','alte chats','gespeicherte chats','verlauf öffnen')){
+  showHist(true);return'Hier ist dein Verlauf, Meister.';}
+ if(h('letzter chat','vorherige unterhaltung','letzte unterhaltung')){
+  if(chats.length){openChat(chats[0].id);return'Ich habe die letzte Unterhaltung geöffnet, Meister.';}
+  return'Es gibt noch keine gespeicherte Unterhaltung, Meister.';}
+ if(h('neuer chat','chat löschen','chat leeren','neu anfangen','neue unterhaltung')){newChat();return'';}
+ if(h('verlauf löschen','alle chats löschen','lösche den verlauf')){chats=[];saveChats();curId=null;
+  renderHist();return'Verlauf gelöscht, Meister.';}
  return null;}
 
-// ---------- KI-Aufrufe ----------
-async function callOpenAICompat(base,key,model,text,extra){history.push({role:'user',content:text});
- try{const r=await fetch(base+'/chat/completions',{method:'POST',
-  headers:Object.assign({'Content-Type':'application/json','Authorization':'Bearer '+key},extra||{}),
-  body:JSON.stringify({model:model,max_tokens:1024,messages:[{role:'system',content:SYS}].concat(history.slice(-12))})});
-  if(!r.ok){const e=await r.text();return'Fehler ('+r.status+'): '+e.slice(0,200);}
-  const d=await r.json();const msg=((d.choices&&d.choices[0]&&d.choices[0].message.content)||'').trim();
-  history.push({role:'assistant',content:msg});return msg||'(keine Antwort)';}
- catch(e){return'Netzwerkfehler: '+e;}}
-async function callGemini(text){const key=(store('gk')||'').trim();
- if(!key)return'Bitte trage deinen kostenlosen Gemini-Key ein (Einstellungen), Meister. Gratis auf aistudio.google.com/apikey.';
- history.push({role:'user',content:text});const model=store('gm')||'gemini-2.5-flash';
- const contents=history.slice(-12).map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]}));
- const gen={maxOutputTokens:2048};if(model.indexOf('2.5')>=0)gen.thinkingConfig={thinkingBudget:0};
- try{const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent',
-  {method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},
-   body:JSON.stringify({system_instruction:{parts:[{text:SYS}]},contents:contents,generationConfig:gen})});
-  if(!r.ok){const e=await r.text();return'Fehler von Gemini ('+r.status+'): '+e.slice(0,200);}
-  const d=await r.json(),cand=(d.candidates&&d.candidates[0])||{};
-  const msg=(((cand.content&&cand.content.parts)||[]).map(p=>p.text||'').join('')).trim();
-  history.push({role:'assistant',content:msg});return msg||'(keine Antwort)';}
- catch(e){return'Netzwerkfehler: '+e;}}
-let chromeSession=null;
-async function callChrome(text){
- if(!('LanguageModel'in self))return'Die Auf-Gerät-KI (Gemini Nano) ist in diesem Browser nicht verfügbar, Meister. Sie braucht Chrome mit aktivierter KI-Funktion. Nutze solange Groq oder Gemini.';
- try{if(!chromeSession){const av=await self.LanguageModel.availability();
-   if(av==='unavailable')return'Auf-Gerät-KI ist auf diesem Gerät nicht verfügbar, Meister.';
-   if(av!=='available')add('s','Lade Auf-Gerät-KI herunter … (einmalig)');
-   chromeSession=await self.LanguageModel.create({initialPrompts:[{role:'system',content:SYS}]});}
-  const out=await chromeSession.prompt(text);
-  history.push({role:'user',content:text});history.push({role:'assistant',content:out});
-  return(out||'').trim()||'(keine Antwort)';}
- catch(e){return'Fehler der Auf-Gerät-KI: '+e;}}
-function callLLM(text){const c=MODELS[provider];
- if(c.kind==='gemini')return callGemini(text);
- if(c.kind==='chrome')return callChrome(text);
- if(c.kind==='ollama'){const host=(store(c.keyStore)||'http://localhost:11434').replace(/\/+$/,'');
-  return callOpenAICompat(host+'/v1','ollama',store(c.modelStore)||c.def,text);}
- const key=(store(c.keyStore)||'').trim();
- if(!key)return Promise.resolve('Bitte trage in den Einstellungen deinen '+c.label+'-API-Key ein, Meister.'+(c.free?' Er ist kostenlos.':''));
- const extra=provider==='openrouter'?{'HTTP-Referer':'https://jarvis.app','X-Title':'JARVIS'}:null;
- return callOpenAICompat(c.base,key,store(c.modelStore)||c.def,text,extra);}
+// ============================================================
+//  KI-AUFRUFE mit automatischer Modellwahl und Ausweichkette
+// ============================================================
+let chromeSession=null, lastUsed='';
+
+/** Ein einzelner Aufruf. Liefert {ok,text} oder {ok:false,status,msg}. */
+async function rawCall(pv,model,text){
+ const c=MODELS[pv], msgs=history.slice(-12);
+ try{
+  if(c.kind==='chrome'){
+   if(!('LanguageModel'in self))return{ok:false,status:0,msg:'Auf-Geraet-KI hier nicht verfuegbar'};
+   if(!chromeSession){const av=await self.LanguageModel.availability();
+    if(av==='unavailable')return{ok:false,status:0,msg:'Auf-Geraet-KI nicht verfuegbar'};
+    if(av!=='available')add('s','Lade Auf-Gerät-KI herunter … (einmalig)');
+    chromeSession=await self.LanguageModel.create({initialPrompts:[{role:'system',content:SYS}]});}
+   const out=await chromeSession.prompt(text);
+   return{ok:true,text:(out||'').trim()};}
+
+  if(c.kind==='gemini'){
+   const key=(store('gk')||'').trim();
+   if(!key)return{ok:false,status:401,msg:'kein Gemini-Key'};
+   const contents=msgs.map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]}));
+   const gen={maxOutputTokens:2048};
+   if(/2\.5|flash-lite/.test(model))gen.thinkingConfig={thinkingBudget:0};
+   const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent',
+    {method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},
+     body:JSON.stringify({system_instruction:{parts:[{text:SYS}]},contents:contents,generationConfig:gen})});
+   if(!r.ok)return{ok:false,status:r.status,msg:(await r.text()).slice(0,160)};
+   const d=await r.json(),cand=(d.candidates&&d.candidates[0])||{};
+   return{ok:true,text:(((cand.content&&cand.content.parts)||[]).map(p=>p.text||'').join('')).trim()};}
+
+  // OpenAI-kompatibel: Groq, OpenRouter, OpenAI, Ollama
+  let base=c.base,key=(c.keyStore?store(c.keyStore):'')||'';
+  if(c.kind==='ollama'){base=((store(c.keyStore)||'http://localhost:11434').replace(/\/+$/,''))+'/v1';key='ollama';}
+  else if(!key)return{ok:false,status:401,msg:'kein '+c.label+'-Key'};
+  const extra=pv==='openrouter'?{'HTTP-Referer':'https://jarvis.app','X-Title':'JARVIS'}:{};
+  const r=await fetch(base+'/chat/completions',{method:'POST',
+   headers:Object.assign({'Content-Type':'application/json','Authorization':'Bearer '+key},extra),
+   body:JSON.stringify({model:model,max_tokens:1024,messages:[{role:'system',content:SYS}].concat(msgs)})});
+  if(!r.ok)return{ok:false,status:r.status,msg:(await r.text()).slice(0,160)};
+  const d=await r.json();
+  return{ok:true,text:((d.choices&&d.choices[0]&&d.choices[0].message.content)||'').trim()};}
+ catch(e){return{ok:false,status:0,msg:String(e)};}}
+
+// ---------- Wie anspruchsvoll ist die Aufgabe? ----------
+function taskTier(t){
+ const q=t.toLowerCase(),len=t.length;
+ const schwer=/(program|code|script|funktion|algorith|debug|fehler such|analysier|beweis|herleit|architekt|refactor|konzept|strategie|vor.*und.*nachteil|schreib.*(aufsatz|text|geschichte|artikel|brief)|übersetz|rechne|mathe|gleichung|integral|statistik|plan(e|ung)|vergleich)/;
+ const leicht=/^(hi|hallo|hey|danke|ok|okay|guten (tag|morgen|abend)|wie geht|was machst|servus|moin|tschüss|bye|ja|nein)\b/;
+ if(leicht.test(q)&&len<40)return'klein';
+ if(schwer.test(q)||len>420||(t.match(/\?/g)||[]).length>2)return'gross';
+ if(len>140)return'mittel';
+ return'klein';}
+
+/** Modell-Leitern je Schwierigkeit – von bevorzugt zu Ausweich. */
+const TIERS={
+ klein:[['groq','llama-3.1-8b-instant'],['gemini','gemini-flash-lite-latest'],
+        ['openrouter','meta-llama/llama-3.3-70b-instruct:free'],['ondevice','nano']],
+ mittel:[['groq','llama-3.3-70b-versatile'],['gemini','gemini-flash-latest'],
+         ['openrouter','deepseek/deepseek-chat-v3-0324:free'],['groq','openai/gpt-oss-120b']],
+ gross:[['gemini','gemini-pro-latest'],['openrouter','deepseek/deepseek-r1:free'],
+        ['groq','openai/gpt-oss-120b'],['groq','llama-3.3-70b-versatile'],
+        ['openrouter','qwen/qwen-2.5-72b-instruct:free']]};
+
+let autoOn=store('auto')!=='0';
+function setAuto(v){autoOn=v;save('auto',v?'1':'0');if($('sw-auto'))$('sw-auto').classList.toggle('on',v);}
+const cooldown={};   // Anbieter -> Zeit, ab der er wieder darf
+function isCooling(pv){return cooldown[pv]&&Date.now()<cooldown[pv];}
+function coolDown(pv,min){cooldown[pv]=Date.now()+min*60000;
+ logPush('LIMIT',[pv+' pausiert fuer '+min+' Min.']);}
+function hasKey(pv){const c=MODELS[pv];return c&&(!c.keyStore||!!store(c.keyStore));}
+
+/** Waehlt das Modell nach Schwierigkeit und weicht bei Limits automatisch aus. */
+async function callLLM(text){
+ let plan;
+ if(autoOn){
+  const tier=taskTier(text);
+  plan=TIERS[tier].filter(x=>MODELS[x[0]]&&hasKey(x[0]));
+  const pref=plan.findIndex(x=>x[0]===provider);
+  if(pref>0)plan.unshift(plan.splice(pref,1)[0]);
+  logPush('AUTO',['Aufgabe '+tier+' -> '+plan.map(x=>x[0]+'/'+x[1]).join(' , ')]);
+ }else{
+  const c=MODELS[provider];
+  plan=[[provider,(c.modelStore&&store(c.modelStore))||c.def||'nano']];}
+ if(!plan.length)return'Bitte trage zuerst einen API-Key in den Einstellungen ein, Meister.';
+
+ let lastMsg='';
+ for(let i=0;i<plan.length;i++){
+  const pv=plan[i][0],model=plan[i][1];
+  if(isCooling(pv)){logPush('AUTO',[pv+' uebersprungen (pausiert)']);continue;}
+  const res=await rawCall(pv,model,text);
+  if(res.ok&&res.text){
+   lastUsed=MODELS[pv].label+' · '+model;
+   if(autoOn)add('s','↪ '+lastUsed);
+   return res.text;}
+  lastMsg=(res.msg||'').slice(0,140);
+  logPush('AUSWEICHEN',[pv+'/'+model+' -> '+res.status+' '+lastMsg]);
+  if(res.status===429||res.status===402||/quota|rate.?limit|exceed/i.test(lastMsg))coolDown(pv,20);
+  else if(res.status===401||res.status===403)coolDown(pv,120);
+  if(i<plan.length-1)add('s','⚠ '+MODELS[pv].label+' blockiert – wechsle …');}
+ return'Alle verfügbaren Modelle sind gerade blockiert, Meister. Letzte Meldung: '+lastMsg;}
 
 // ---------- Hauptablauf ----------
 // Direkte Gerätebefehle (ohne KI, sofort)
@@ -550,6 +708,11 @@ function directDevice(text){const q=' '+text.toLowerCase()+' ',h=(...w)=>w.some(
  if(h('zeig den ordner','was ist in downloads','dateien in'))return['dateien',
    /downloads?/.test(q)?'downloads':(/bilder|fotos|dcim/.test(q)?'dcim':'')];
  if(h('vollzugriff','dateirechte'))return['vollzugriff',''];
+ if(h('diagnose','protokoll','log anzeigen','fehlerbericht','was ist schiefgelaufen'))return['diagnose',''];
+ if(h('logcat','systemprotokoll'))return['logcat',''];
+ if(h('absturz','crash'))return['absturz',''];
+ if(h('selbst update','selbstupdate','aktualisiere dich','update dich','neue version laden'))return['selbstupdate',''];
+ if(h('neu starten','neustart','lade dich neu'))return['neustart',''];
  return null;}
 
 async function handle(txt){txt=(txt||'').trim();if(!txt)return;add('u',txt);
@@ -563,10 +726,13 @@ async function handle(txt){txt=(txt||'').trim();if(!txt)return;add('u',txt);
   if(isLocation(txt)){if(!geo){getGeo();d.textContent='Ich kenne deinen Standort noch nicht, Meister.';speak(d.textContent);return;}
    const city=await reverseCity(geo.lat,geo.lon);
    d.textContent=city?('Du befindest dich in '+city+', Meister.'):('Deine Koordinaten: '+geo.lat.toFixed(4)+', '+geo.lon.toFixed(4)+', Meister.');speak(d.textContent);return;}
+  history.push({role:'user',content:txt});
   const reply=await callLLM(txt);
+  if(reply)history.push({role:'assistant',content:reply});
   const clean=await runAICommands(reply);   // Jarvis steuert Oberfläche + Gerät selbst
   if(clean){d.textContent=clean;speak(clean);}else d.remove();
- }catch(e){d.textContent='Fehler: '+e;}}
+  saveCurrent();syncSoon();
+ }catch(e){d.textContent='Fehler: '+e;logPush('ANTWORT-FEHLER',[String(e)]);}}
 
 // ============================================================
 //  GERÄTE-ZUGRIFF – echte Hardware-Funktionen für Jarvis
@@ -620,6 +786,177 @@ async function askVision(dataUrl,prompt){
  return'Der aktuelle Anbieter kann keine Bilder sehen, Meister. Wechsle zu Gemini.';}
 
 const ND=window.AndroidDevice||null;      // native Brücke (nur in der APK)
+
+// ============================================================
+//  CHAT-VERLAUF – Unterhaltungen speichern und wieder öffnen
+// ============================================================
+let chats=[],curId=null;
+function loadChats(){try{chats=JSON.parse(store('chats')||'[]');}catch(e){chats=[];}
+ if(!Array.isArray(chats))chats=[];}
+function saveChats(){try{save('chats',JSON.stringify(chats.slice(0,60)));}catch(e){logPush('VERLAUF',['Speichern fehlgeschlagen: '+e]);}}
+function titleOf(msgs){const u=msgs.find(m=>m.role==='user');
+ return u?u.content.replace(/\s+/g,' ').slice(0,54):'Neue Unterhaltung';}
+function saveCurrent(){
+ if(!history.length)return;
+ if(!curId)curId='c'+Date.now();
+ const rec={id:curId,t:titleOf(history),ts:Date.now(),msgs:history.slice(-60)};
+ const i=chats.findIndex(c=>c.id===curId);
+ if(i>=0)chats[i]=rec;else chats.unshift(rec);
+ chats.sort((a,b)=>b.ts-a.ts);
+ saveChats();}
+function openChat(id){const c=chats.find(x=>x.id===id);if(!c)return;
+ curId=c.id;history=c.msgs.slice();
+ chat.innerHTML='';
+ history.forEach(m=>add(m.role==='user'?'u':'j',m.content));
+ add('s','— fortgesetzt —');
+ showHist(false);}
+function newChat(){saveCurrent();curId=null;history=[];chat.innerHTML='';
+ add('s','Neue Unterhaltung. Zu Diensten, Meister.');showHist(false);}
+function delChat(id){chats=chats.filter(c=>c.id!==id);saveChats();
+ if(curId===id){curId=null;history=[];chat.innerHTML='';}
+ renderHist();}
+function relTime(ts){const d=(Date.now()-ts)/1000;
+ if(d<60)return'gerade eben';if(d<3600)return Math.floor(d/60)+' Min.';
+ if(d<86400)return Math.floor(d/3600)+' Std.';
+ const dt=new Date(ts);return dt.getDate()+'.'+(dt.getMonth()+1)+'.';}
+function renderHist(){const box=$('histlist');box.innerHTML='';
+ if(!chats.length){$('histinfo').textContent='Noch keine gespeicherten Unterhaltungen.';return;}
+ $('histinfo').textContent=chats.length+' Unterhaltung'+(chats.length===1?'':'en')+' gespeichert.';
+ chats.forEach(c=>{const row=document.createElement('div');
+  row.className='hrow'+(c.id===curId?' cur':'');
+  const tx=document.createElement('div');tx.className='ht';
+  const b=document.createElement('b');b.textContent=c.t;
+  const s=document.createElement('small');s.textContent=relTime(c.ts)+' · '+c.msgs.length+' Nachrichten';
+  tx.appendChild(b);tx.appendChild(s);
+  tx.onclick=()=>openChat(c.id);
+  const x=document.createElement('button');x.className='hx';x.textContent='🗑';
+  x.onclick=e=>{e.stopPropagation();delChat(c.id);};
+  row.appendChild(tx);row.appendChild(x);box.appendChild(row);});}
+function showHist(o){$('histpanel').classList.toggle('open',o);$('backdrop').classList.toggle('open',o);
+ if(o)renderHist();}
+
+
+// ============================================================
+//  KONTO & SYNC – Chats und Einstellungen zwischen Geräten
+//  Ablage: ein privates GitHub-Gist (kostenlos, dein Konto)
+// ============================================================
+const SYNC_KEYS=['gqk','gk','ork','oak','olh','gqm','gm','orm','oam','olm',
+ 'theme','voice','pitch','rate','speak','wake','auto','provider','dev','updurl'];
+function syncCfg(){const o={};SYNC_KEYS.forEach(k=>{const v=store(k);if(v!==null)o[k]=v;});return o;}
+function applyCfg(o){if(!o)return;Object.keys(o).forEach(k=>{if(SYNC_KEYS.indexOf(k)>=0)save(k,o[k]);});}
+function ghHeaders(){return{'Authorization':'Bearer '+(store('ghtok')||'').trim(),
+ 'Accept':'application/vnd.github+json','Content-Type':'application/json'};}
+function syncTag(){return 'jarvis-sync:'+((store('email')||'').trim().toLowerCase()||'standard');}
+function deviceName(){let d=store('devname');if(!d){d=(navigator.userAgent.match(/\(([^;)]+)/)||[])[1]||'Gerät';
+ d=d.slice(0,24)+' '+Math.floor(Math.random()*90+10);save('devname',d);}return d;}
+
+async function findGist(){
+ if(store('gistid'))return store('gistid');
+ const r=await fetch('https://api.github.com/gists?per_page=100',{headers:ghHeaders()});
+ if(!r.ok)throw new Error('GitHub '+r.status);
+ const list=await r.json();
+ const hit=list.find(g=>(g.description||'')===syncTag());
+ if(hit){save('gistid',hit.id);return hit.id;}
+ return null;}
+
+async function syncPush(){
+ const tok=(store('ghtok')||'').trim();
+ if(!tok)return'Bitte zuerst E-Mail und GitHub-Token in den Einstellungen eintragen, Meister.';
+ try{
+  saveCurrent();
+  let id=await findGist();
+  // Erst zusammenführen, damit das andere Gerät nichts verliert
+  if(id){const cur=await syncFetch(id);if(cur)mergeChats(cur.chats||[]);}
+  const payload={email:(store('email')||'').trim(),ts:Date.now(),device:deviceName(),
+   chats:chats.slice(0,60),config:syncCfg()};
+  const body=JSON.stringify({description:syncTag(),public:false,
+   files:{'jarvis.json':{content:JSON.stringify(payload,null,1)}}});
+  const r=id
+   ? await fetch('https://api.github.com/gists/'+id,{method:'PATCH',headers:ghHeaders(),body:body})
+   : await fetch('https://api.github.com/gists',{method:'POST',headers:ghHeaders(),body:body});
+  if(!r.ok)return'Hochladen fehlgeschlagen ('+r.status+'). Hat der Token das Recht „gist"?';
+  const g=await r.json();save('gistid',g.id);save('synced',String(Date.now()));
+  logPush('SYNC',['hochgeladen: '+chats.length+' Unterhaltungen']);
+  return'Synchronisiert: '+chats.length+' Unterhaltungen und alle Einstellungen, Meister.';}
+ catch(e){return'Sync-Fehler: '+e;}}
+
+async function syncFetch(id){
+ const r=await fetch('https://api.github.com/gists/'+id,{headers:ghHeaders(),cache:'no-store'});
+ if(!r.ok)return null;
+ const g=await r.json(),f=g.files&&g.files['jarvis.json'];
+ if(!f)return null;
+ let txt=f.content;
+ if(f.truncated&&f.raw_url){const rr=await fetch(f.raw_url);txt=await rr.text();}
+ try{return JSON.parse(txt);}catch(e){return null;}}
+
+function mergeChats(remote){
+ const byId={};
+ chats.forEach(c=>byId[c.id]=c);
+ remote.forEach(c=>{const o=byId[c.id];
+  if(!o||(c.ts||0)>(o.ts||0))byId[c.id]=c;});
+ chats=Object.keys(byId).map(k=>byId[k]).sort((a,b)=>b.ts-a.ts).slice(0,60);
+ saveChats();}
+
+async function syncPull(silent){
+ const tok=(store('ghtok')||'').trim();
+ if(!tok)return silent?'':'Bitte zuerst E-Mail und GitHub-Token eintragen, Meister.';
+ try{
+  const id=await findGist();
+  if(!id)return silent?'':'Noch nichts synchronisiert, Meister. Lade zuerst hoch.';
+  const data=await syncFetch(id);
+  if(!data)return silent?'':'Keine Daten gefunden.';
+  const before=chats.length;
+  mergeChats(data.chats||[]);
+  applyCfg(data.config);
+  save('synced',String(Date.now()));
+  renderHist();
+  logPush('SYNC',['geladen von '+(data.device||'?')+': '+(data.chats||[]).length+' Unterhaltungen']);
+  const msg='Geladen von '+(data.device||'anderem Gerät')+': '+chats.length+
+   ' Unterhaltungen ('+(chats.length-before)+' neu), Einstellungen übernommen.';
+  if(!silent)return msg;
+  if(chats.length>before)add('s','☁ '+msg);
+  return'';}
+ catch(e){return silent?'':'Sync-Fehler: '+e;}}
+
+let pushTimer=null;
+function syncSoon(){if(!store('ghtok')||store('autosync')==='0')return;
+ clearTimeout(pushTimer);pushTimer=setTimeout(()=>{syncPush();},6000);}
+
+// ---------- Diagnosebericht (zum Weitergeben an den Entwickler) ----------
+function diagReport(){
+ const c=MODELS[provider],n=navigator;
+ let nat='(Browser)';
+ if(ND){try{nat=ND.appInfo();}catch(e){nat='(App, Info-Fehler)';}}
+ return['=== JARVIS DIAGNOSE ===',
+  'Oberfläche : v'+APP_VERSION,
+  'Umgebung   : '+(ND?'Android-App':'Browser'),
+  'App-Info   : '+nat,
+  'Anbieter   : '+c.label+'  Modell: '+((c.modelStore&&store(c.modelStore))||c.def||'-'),
+  'Key gesetzt: '+(c.keyStore?(store(c.keyStore)?'ja':'NEIN'):'nicht nötig'),
+  'Design     : '+(store('theme')||'arc')+'   Stimme: '+(vlist[voiceIdx]?vlist[voiceIdx].label:'-'),
+  'Sprachmodus: '+voiceMode+'  Weckwort: '+wakeOn+'  Gerätezugriff: '+devOn,
+  'Standort   : '+(geo?'ja':'nein')+'   Browser: '+(n.userAgent||'').slice(0,110),
+  'Zeit       : '+new Date().toISOString(),
+  '',
+  '--- Protokoll (letzte '+Math.min(LOG.length,80)+' Einträge) ---',
+  LOG.slice(-80).join('\n')||'(leer)'].join('\n');}
+
+// ---------- Selbst-Update: neue Oberfläche laden, ohne die App neu zu bauen ----
+const UPDATE_URL='https://raw.githubusercontent.com/mio530/jarvis-app/main/android-app/app/src/main/assets/index.html';
+async function selfUpdate(url){
+ if(!ND)return'Selbst-Update geht nur in der App, Meister.';
+ const u=(url&&url.trim())||store('updurl')||UPDATE_URL;
+ add('s','⬇ Lade neue Version …');
+ try{const r=await fetch(u,{cache:'no-store'});
+  if(!r.ok)return'Update fehlgeschlagen ('+r.status+').';
+  const html=await r.text();
+  if(html.length<5000||html.indexOf('J.A.R.V.I.S')<0)return'Die geladene Datei sieht nicht nach Jarvis aus – Abbruch.';
+  const m=html.match(/APP_VERSION='([^']+)'/);
+  const res=ND.writeFile('/sdcard/Jarvis/index.html',html);
+  save('updurl',u);
+  return'Version '+(m?m[1]:'?')+' installiert ('+Math.round(html.length/1024)+' kB). '+res+
+   '  Sag „neu starten“, um sie zu laden, Meister.';}
+ catch(e){return'Update fehlgeschlagen: '+e;}}
 async function deviceCmd(cmd,val){
  if(!devOn)return'Geräte-Zugriff ist ausgeschaltet (Einstellungen).';
  // --- In der APK: echter Systemzugriff über die native Brücke ---
@@ -646,7 +983,18 @@ async function deviceCmd(cmd,val){
   case 'melden': case 'benachrichtigung': return ND.notify(val||'Meldung');
   case 'oeffnen': case 'open': {let u=val||'';if(!/^[a-z]+:/i.test(u))u='https://'+u;return ND.openUrl(u);}
   case 'karte': return ND.openUrl('https://maps.google.com/?q='+encodeURIComponent(val||''));
+  case 'logcat': return ND.logcat(parseInt(val)||120);
+  case 'absturz': return ND.lastCrash();
+  case 'neustart': case 'neuladen': ND.reload();return'Starte neu, Meister.';
+  case 'appinfo': return ND.appInfo();
  }}catch(e){return'Gerätefehler: '+e;}}
+ // --- Überall verfügbar ---
+ if(cmd==='diagnose'||cmd==='protokoll'){const rep=diagReport();
+  try{await navigator.clipboard.writeText(rep);}catch(e){}
+  return rep.slice(0,3000)+'\n\n(In die Zwischenablage kopiert.)';}
+ if(cmd==='selbstupdate'||cmd==='update')return await selfUpdate(val);
+ if(cmd==='sync')return await syncPush();
+ if(cmd==='syncladen')return await syncPull();
  // --- Im Browser: das, was der Browser erlaubt ---
  try{switch(cmd){
   case 'foto': case 'sehen': case 'kamera': {
@@ -693,7 +1041,10 @@ async function runAICommands(text){let did=[],jobs=[];
   else if(cmd==='speak'){setSpeak(lv==='an'||lv==='on');did.push('Vorlesen '+lv);}
   else if(cmd==='voice'){setVoiceMode(lv==='an'||lv==='on');did.push('Sprachmodus '+lv);}
   else if(cmd==='provider'){if(MODELS[lv]){setProvider(lv);did.push('Anbieter: '+MODELS[lv].label);}}
-  else if(cmd==='clear'){chat.innerHTML='';history=[];did.push('Chat geleert');}
+  else if(cmd==='clear'){newChat();did.push('Neue Unterhaltung');}
+  else if(cmd==='verlauf'){showHist(true);did.push('Verlauf geöffnet');}
+  else if(cmd==='auto'){setAuto(lv==='an'||lv==='on');did.push('Auto-Modell '+lv);}
+  else if(cmd==='sync'){jobs.push(['sync','']);}
   else{jobs.push([cmd,val]);}       // Gerätebefehle laufen asynchron
   return '';}).trim();
  if(did.length)setTimeout(()=>add('s','⚙ '+did.join(' · ')),60);
@@ -707,12 +1058,16 @@ t.addEventListener('input',()=>{t.style.height='auto';t.style.height=Math.min(t.
 t.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('send').click();}});
 $('vmode').onclick=()=>setVoiceMode(!voiceMode);
 function openSettings(o){$('settings').classList.toggle('open',o);$('backdrop').classList.toggle('open',o);}
-$('gear').onclick=()=>openSettings(true);$('backdrop').onclick=()=>openSettings(false);
+$('gear').onclick=()=>openSettings(true);
+$('backdrop').onclick=()=>{openSettings(false);showHist(false);};
+$('hist').onclick=()=>showHist(true);
+$('newchat').onclick=newChat;
 $('sw-speak').onclick=()=>setSpeak(!speakOn);
 $('sw-voice').onclick=()=>setVoiceMode(!voiceMode);
 $('sw-wake').onclick=()=>setWake(!wakeOn);
 $('sw-dev').onclick=()=>setDev(!devOn);
-$('clear').onclick=()=>{chat.innerHTML='';history=[];openSettings(false);};
+$('sw-auto').onclick=()=>setAuto(!autoOn);
+$('clear').onclick=()=>{openSettings(false);newChat();};
 $('pit').oninput=()=>{save('pitch',$('pit').value);showSliderVals();};
 $('rat').oninput=()=>{save('rate',$('rat').value);showSliderVals();};
 $('pit').onchange=testVoice;$('rat').onchange=testVoice;
@@ -783,7 +1138,48 @@ $('model').onchange=e=>{const c=MODELS[provider];if(c.modelStore)save(c.modelSto
  sel.onchange=e=>applyTheme(e.target.value);})();
 applyTheme(store('theme')||'arc');
 
+
+// Konto & Sync verdrahten
+$('email').value=store('email')||'';
+$('email').oninput=e=>{save('email',e.target.value.trim());localStorage.removeItem('jarvis_gistid');};
+$('ghtok').value=store('ghtok')||'';
+$('ghtok').oninput=e=>save('ghtok',e.target.value.trim());
+function setSync(v){save('autosync',v?'1':'0');$('sw-sync').classList.toggle('on',v);}
+$('sw-sync').onclick=()=>setSync(store('autosync')==='0');
+setSync(store('autosync')!=='0');
+$('syncup').onclick=async()=>{$('syncinfo').textContent='Lade hoch …';$('syncinfo').textContent=await syncPush();};
+$('syncdown').onclick=async()=>{$('syncinfo').textContent='Lade …';$('syncinfo').textContent=await syncPull();};
+if(store('synced'))$('syncinfo').textContent='Zuletzt synchronisiert: '+new Date(+store('synced')).toLocaleString('de-DE');
+// beim Start still abgleichen
+if(store('ghtok')&&store('autosync')!=='0')setTimeout(()=>syncPull(true),1500);
+
+// Diagnose-Knöpfe
+$('diagcopy').onclick=async()=>{const r=diagReport();
+ try{await navigator.clipboard.writeText(r);$('verline').textContent='Bericht kopiert – jetzt in den Chat mit dem Entwickler einfügen.';}
+ catch(e){if(ND){ND.copy(r);$('verline').textContent='Bericht kopiert.';}else $('verline').textContent='Kopieren nicht möglich.';}};
+$('diaglogcat').onclick=async()=>{const r=await deviceCmd('logcat','150');
+ $('logbox').textContent=String(r).slice(-6000);};
+$('diagupdate').onclick=async()=>{const r=await selfUpdate();add('j',r);openSettings(false);};
+$('diagreload').onclick=()=>{if(ND)ND.reload();else location.reload();};
+
+// Offline-Fähigkeit (Web-App auf iPad/Android)
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))
+ navigator.serviceWorker.register('sw.js').catch(()=>{});
+// iOS gibt die Sprachausgabe erst nach einer echten Berührung frei
+let ttsReady=false;
+function primeTTS(){if(ttsReady||!('speechSynthesis'in window))return;ttsReady=true;
+ try{const u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u);}catch(e){}}
+document.addEventListener('touchend',primeTTS,{once:true});
+document.addEventListener('click',primeTTS,{once:true});
+
 // init
-refreshProviderUI();setSpeak(speakOn);setWake(wakeOn);setDev(devOn);getGeo();
+logPush('START',['Jarvis v'+APP_VERSION+' gestartet ('+(ND?'App':'Browser')+')']);
+loadChats();
+refreshProviderUI();setSpeak(speakOn);setWake(wakeOn);setDev(devOn);setAuto(autoOn);getGeo();
+window.addEventListener('pagehide',saveCurrent);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)saveCurrent();});
+$('verline').textContent='Oberfläche v'+APP_VERSION+(ND?' · native App':' · Browser');
+if(ND){try{const cr=ND.lastCrash();if(cr&&cr.indexOf('Kein')<0){logPush('ABSTURZ',[cr.slice(0,400)]);
+ add('s','⚠ Beim letzten Mal gab es einen Absturz – Details unter Einstellungen → Diagnose.');}}catch(e){}}
 add('s','Systeme online. Guten Tag, Meister.');
 </script></body></html>
