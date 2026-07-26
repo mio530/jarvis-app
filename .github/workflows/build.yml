@@ -6,6 +6,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   build:
@@ -44,5 +46,40 @@ jobs:
         with:
           tag_name: jarvis-app
           name: J.A.R.V.I.S. Android-App
-          body: Installierbare Android-App. Laden, antippen, installieren. Groq-Key beim ersten Start in den Einstellungen eintragen.
+          body: >-
+            Installierbare Android-App. Laden, antippen, installieren.
+            Groq-Key beim ersten Start in den Einstellungen eintragen.
           files: jarvis.apk
+
+  web:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Web-Ordner zusammenstellen
+        run: |
+          mkdir -p site
+          cp android-app/app/src/main/assets/index.html site/
+          cp android-app/app/src/main/assets/manifest.webmanifest site/
+          cp android-app/app/src/main/assets/sw.js site/
+          cp android-app/app/src/main/assets/icon-*.png site/
+          ls -la site
+
+      - name: Für GitHub Pages verpacken
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: web
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Auf GitHub Pages veröffentlichen
+        id: deployment
+        uses: actions/deploy-pages@v4
