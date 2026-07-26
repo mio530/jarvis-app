@@ -52,8 +52,8 @@ display:flex;align-items:center;gap:8px}
 .greet p{margin:6px 0 0;color:var(--dim);font-size:13px}
 .gtop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
 .gtop>div:first-child{min-width:0;flex:1 1 auto}
-.wx{flex:0 1 auto;max-width:40%;text-align:right;font-size:11px;line-height:1.35;color:var(--dim);
-overflow-wrap:anywhere}
+.wx{flex:0 0 auto;max-width:45%;text-align:right;font-size:11px;line-height:1.35;color:var(--dim);
+white-space:nowrap}
 .wx b{display:block;font-size:20px;line-height:1.1;color:var(--txt)}
 .wx span{display:block}
 /* reactor */
@@ -155,7 +155,7 @@ padding:10px;margin-top:8px;background:var(--panel)}
 .hrow .hx{background:none;border:0;color:var(--dim);font-size:17px;padding:2px 4px;flex:0 0 auto}
 #settings h3{margin:0 0 6px;color:var(--cyan2);letter-spacing:2px;font-size:14px;text-transform:uppercase}
 .row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid #0f2233;flex-wrap:wrap}
-.row>span{flex:1 1 60%;min-width:0;overflow-wrap:anywhere}
+#settings .row>span{flex:1 1 60%;min-width:0;overflow-wrap:anywhere}
 .row:last-child{border-bottom:0}
 select,.mini{width:100%;max-width:100%;background:var(--field);color:var(--txt);border:1px solid var(--line2);border-radius:10px;padding:11px;margin-top:6px;font-size:15px}
 #logbox,pre{overflow-wrap:anywhere;word-break:break-word}
@@ -257,6 +257,11 @@ label.lbl{font-size:12px;color:var(--dim);display:block;margin-top:10px;letter-s
 <button class="mini" id="lockfree" style="border-color:var(--line2)">&#8635; Festhalten aufheben und neu w&#228;hlen</button>
 <label class="lbl">KI-Anbieter (viele kostenlos)</label>
 <select id="provider"></select>
+<p class="tip" id="keystat"></p>
+<div id="keyforbox" style="display:none">
+<label class="lbl">Key eintragen f&#252;r</label>
+<select id="keyfor"></select>
+</div>
 <label class="lbl" id="keylbl">API-Key</label>
 <input class="mini" id="key" type="password" placeholder="...">
 <label class="lbl">Modell</label>
@@ -315,7 +320,7 @@ border-radius:10px;padding:10px;font-size:10px;line-height:1.45;white-space:pre-
 </div>
 
 <script>
-const APP_VERSION='2.2';
+const APP_VERSION='2.4';
 // ============================================================
 //  DIAGNOSE – Protokoll, Absturz-Erfassung, Selbst-Update
 // ============================================================
@@ -425,7 +430,12 @@ const SYS_BASE="Du bist J.A.R.V.I.S., ein höflicher, wortkarger KI-Assistent im
 "5. Wenn du über Befehle SPRICHST oder sie erklärst, schreibe sie in einfachen Anführungszeichen "+
 "oder in einen Code-Block, damit sie nicht ausgeführt werden.\n"+
 "6. Erfinde keine Befehle. Nur die oben gelisteten existieren.\n"+
-"7. Erfinde NIEMALS Messwerte. Akkustand, Speicherplatz, Netz, Uhrzeit, Dateilisten "+
+"7. Behaupte NIE, eine Aktion sei gelungen. Du siehst das Ergebnis nicht. "+
+"Schreibe 'Ich öffne YouTube, Meister.' und haenge den Befehl an – die App meldet "+
+"selbst, ob es geklappt hat. Kein 'erfolgreich geändert', kein 'wurde geöffnet'.\n"+
+"8. Fuer Apps nimm [[starte:Name]], NICHT [[apps]]. [[apps]] listet nur auf und "+
+"ist fast nie gemeint.\n"+
+"9. Erfinde NIEMALS Messwerte. Akkustand, Speicherplatz, Netz, Uhrzeit, Dateilisten "+
 "und Wetter kennst du nicht aus dem Kopf. Sende den passenden Befehl und schreibe dazu "+
 "nur einen kurzen Satz wie 'Einen Moment, Meister.' – die App haengt die echten Werte "+
 "selbst an. Nenne keine eigenen Zahlen.\n"+
@@ -1006,7 +1016,11 @@ function lockFree(){lockPv='';lockModel='';
 function setLocked(pv,model){if(!lockOn)return;
  if(lockPv===pv&&lockModel===model)return;
  lockPv=pv;lockModel=model;save('lockpv',pv);save('lockmodel',model);lockInfo();}
-function setAuto(v){autoOn=v;save('auto',v?'1':'0');if($('sw-auto'))$('sw-auto').classList.toggle('on',v);}
+function setAuto(v){autoOn=v;save('auto',v?'1':'0');
+ if($('sw-auto'))$('sw-auto').classList.toggle('on',v);
+ if($('provider'))$('provider').value=v?'auto':provider;
+ if($('keyforbox'))$('keyforbox').style.display=v?'block':'none';
+ if(typeof refreshProviderUI==='function')refreshProviderUI();}
 const cooldown={};   // Anbieter -> Zeit, ab der er wieder darf
 function isCooling(pv){return cooldown[pv]&&Date.now()<cooldown[pv];}
 function coolDown(pv,min){cooldown[pv]=Date.now()+min*60000;
@@ -1199,6 +1213,22 @@ async function saveImage(){
 // ---------- Hauptablauf ----------
 // Direkte Gerätebefehle (ohne KI, sofort)
 function directDevice(text){const q=' '+text.toLowerCase()+' ',h=(...w)=>w.some(x=>q.includes(x));
+ // "öffne YouTube" / "starte Spotify" gehen direkt an das Geraet, ohne KI.
+ // Vorher schickte das Modell dafuer gern [[apps]] und flutete den Chat.
+ const KURZ={yt:'youtube',ytmusic:'youtube music',insta:'instagram',fb:'facebook',
+  wa:'whatsapp',tg:'telegram',tt:'tiktok',gmaps:'maps',karte:'maps',karten:'maps',
+  gmail:'gmail',mail:'gmail',ig:'instagram',pf:'einstellungen',
+  einstellungen:'einstellungen',kamera:'kamera',galerie:'galerie',fotos:'fotos',
+  rechner:'rechner',uhr:'uhr',wecker:'uhr',kalender:'kalender',musik:'spotify'};
+ const oeff=text.match(/^\s*(?:jarvis[,\s]*)?(?:öffne|oeffne|starte|start|zeig(?:e)?\s+mir|geh\s+(?:auf|zu)|mach\s+(?:mir\s+)?(?:mal\s+)?)\s+(?:die\s+|den\s+|das\s+)?(.+?)\s*(?:\bapp\b|\bauf\b)?\s*$/i);
+ if(oeff){
+  let ziel=oeff[1].trim().replace(/\s+app$/i,'').replace(/[.!?]+$/,'');
+  const k=ziel.toLowerCase();
+  if(KURZ[k])ziel=KURZ[k];
+  // sieht es wie eine Adresse aus? dann Browser, sonst App
+  if(/^(https?:\/\/|www\.)/i.test(ziel)||/\.[a-z]{2,}($|\/)/i.test(ziel))
+   return['oeffnen',ziel];
+  if(ziel.length>1&&ziel.length<40&&!/\s{2,}/.test(ziel))return['starte',ziel];}
  if(h('speicher das bild','bild speichern','bild sichern'))return['bildspeichern',''];
  if(h('was siehst du','schau mal','sieh dir an','beschreibe was du siehst','was ist das'))return['sehen',''];
  // Kamera zuerst – „mach ein Foto“ ist Aufnahme, kein Bildwunsch
@@ -1492,6 +1522,15 @@ async function selfUpdate(url){
   return'Version '+(m?m[1]:'?')+' installiert ('+Math.round(html.length/1024)+' kB). '+res+
    '  Sag „neu starten“, um sie zu laden, Meister.';}
  catch(e){return'Update fehlgeschlagen: '+e;}}
+/** Lange Listen kuerzen. Ungekappt flutet z. B. die App-Liste den Chat
+ *  und verdraengt den Gespraechsverlauf aus dem Modell-Gedaechtnis. */
+function kappen(text,maxZeilen,was){
+ const z=String(text==null?'':text).split('\n');
+ if(z.length<=maxZeilen)return z.join('\n');
+ return z.slice(0,maxZeilen).join('\n')+
+  '\n… und '+(z.length-maxZeilen)+' weitere '+(was||'Zeilen')+
+  '. Frag nach einem Namen, dann suche ich gezielt.';}
+
 async function deviceCmd(cmd,val){
  if(!devOn)return'Geräte-Zugriff ist ausgeschaltet (Einstellungen).';
  // --- In der APK: echter Systemzugriff über die native Brücke ---
@@ -1503,7 +1542,7 @@ async function deviceCmd(cmd,val){
    return ND.writeFile(val.slice(0,i).trim(),val.slice(i+1));}
   case 'loeschen': return ND.deleteFile(val||'');
   case 'vollzugriff': return ND.requestAllFiles();
-  case 'apps': return ND.listApps();
+  case 'apps': return kappen(ND.listApps(),25,'Apps');
   case 'starte': return ND.launchApp(val||'');
   case 'befehl': case 'shell': return ND.exec(val||'');
   case 'anrufen': return ND.call(val||'');
@@ -1624,12 +1663,27 @@ function maskCode(s){const keep=[];
 function unmaskCode(s,keep){return s.replace(/@@CODE(\d+)@@/g,(m,i)=>keep[+i]);}
 
 // ---------- Befehle ausführen, die Jarvis selbst in seiner Antwort sendet ----------
+/** Alle Befehlsnamen, die es wirklich gibt. */
+const BEFEHLE=['theme','speak','voice','provider','clear','verlauf','auto','direkt','sync',
+ 'bild','sehen','foto','taschenlampe','licht','vibrieren','status','oeffnen','anrufen','sms',
+ 'karte','kopieren','einfuegen','kontakt','datei','speichern','melden','teilen','wachhalten',
+ 'dateien','lesen','schreiben','loeschen','vollzugriff','apps','starte','befehl','shell',
+ 'diagnose','logcat','absturz','selbstupdate','neustart','appinfo','bildspeichern'];
+
+/** Toleranter Befehlsleser.
+ *  Modelle verhauen die Klammern staendig: [[theme:gold]] , [[][theme:gold]] ,
+ *  [][theme:gold]] , [theme:gold] . Darum: beliebig viele Klammern auf jeder
+ *  Seite. Damit dabei nicht jede eckige Klammer im Text verschwindet, muss der
+ *  Name in BEFEHLE stehen – "[5] Grad" und "[siehe unten]" bleiben unberuehrt. */
+const CMD_RE=/\[+\s*([a-zA-ZäöüÄÖÜ_]+)\s*:?\s*([^\[\]\n]*?)\s*\]+/g;
+
 async function runAICommands(text,userText){let did=[],jobs=[],weg=[],n=0;
  const schon={};                    // gleicher Befehl nur einmal je Antwort
  const mk=maskCode(text);
- const clean=unmaskCode(mk.out.replace(/\[\[\s*([a-zA-ZäöüÄÖÜ_]+)\s*:?\s*([^\]]*)\]\]/g,(m,cmd,val)=>{
+ const clean=unmaskCode(mk.out.replace(CMD_RE,(m,cmd,val)=>{
   cmd=cmd.toLowerCase().replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ä/g,'ae');
   val=(val||'').trim();
+  if(BEFEHLE.indexOf(cmd)<0)return m;      // kein Befehl – Text unangetastet
   const lv=val.toLowerCase();
   const schluessel=cmd+':'+lv;
   if(schon[schluessel]){weg.push(cmd+' (doppelt)');return'';}
@@ -1647,7 +1701,9 @@ async function runAICommands(text,userText){let did=[],jobs=[],weg=[],n=0;
   else if(cmd==='direkt'){setDirekt(lv==='an'||lv==='on');did.push('Direkt-Modus '+lv);}
   else if(cmd==='sync'){jobs.push(['sync','']);}
   else{jobs.push([cmd,val]);}       // Gerätebefehle laufen asynchron
-  return '';}),mk.keep).trim();
+  return '';}),mk.keep)
+  .replace(/\[+\s*\]+/g,'')      // uebrige leere Klammern
+  .replace(/[ \t]{2,}/g,' ').trim();
  if(weg.length)logPush('BEFEHL-VERWORFEN',[weg.join(' , ')]);
  if(did.length)setTimeout(()=>add('s','⚙ '+did.join(' · ')),60);
  for(const [c,v] of jobs){const res=await deviceCmd(c,v);
@@ -1685,8 +1741,13 @@ $('pit').onchange=testVoice;$('rat').onchange=testVoice;
 $('vtest').onclick=testVoice;
 
 // provider UI
-(function(){const sel=$('provider');Object.keys(MODELS).forEach(k=>{const o=document.createElement('option');
- o.value=k;o.textContent=MODELS[k].label+(MODELS[k].free?' (gratis)':'');sel.appendChild(o);});})();
+(function(){const sel=$('provider'),kf=$('keyfor');
+ const auto=document.createElement('option');
+ auto.value='auto';auto.textContent='Automatisch – Jarvis wählt selbst';sel.appendChild(auto);
+ Object.keys(MODELS).forEach(k=>{
+  const o=document.createElement('option');
+  o.value=k;o.textContent=MODELS[k].label+(MODELS[k].free?' (gratis)':'');sel.appendChild(o);
+  const o2=o.cloneNode(true);kf.appendChild(o2);});})();
 function refreshProviderUI(){const c=MODELS[provider];
  $('keylbl').textContent=c.keyLabel;const kin=$('key');
  if(c.kind==='chrome'){kin.style.display='none';}else{kin.style.display='';
@@ -1698,7 +1759,17 @@ function refreshProviderUI(){const c=MODELS[provider];
  else c.list.forEach(m=>{const o=document.createElement('option');o.value=m[0];o.textContent=m[1];sel.appendChild(o);});
  const want=c.modelStore?(store(c.modelStore)||c.def):c.list[0][0];
  sel.value=want;if(!sel.value&&sel.options.length)sel.selectedIndex=0;
- $('provider').value=provider;
+ $('provider').value=autoOn?'auto':provider;
+ if($('keyfor'))$('keyfor').value=provider;
+ if($('keyforbox'))$('keyforbox').style.display=autoOn?'block':'none';
+ if($('keystat')){
+  const mit=[],ohne=[];
+  Object.keys(MODELS).forEach(k=>{if(MODELS[k].onDevice)return;
+   (hasKey(k)?mit:ohne).push(MODELS[k].label);});
+  $('keystat').textContent=autoOn
+   ?('Jarvis wählt selbst aus: '+(mit.length?mit.join(', '):'– noch kein Key –')+
+     (ohne.length?('  ·  ohne Key: '+ohne.join(', ')):''))
+   :'';}
  $('phint').textContent=c.onDevice?'Läuft direkt auf deinem Gerät, komplett offline und privat.'
   :(c.coder?'Kostenlos – und stark beim Programmieren.':'Kostenlos – nur ein Gratis-Key nötig.');
  if($('info'))$('info').textContent=(NATIVE?'Android-App':'Browser')+' · '+c.label;}
@@ -1741,7 +1812,14 @@ async function fetchModels(){const c=MODELS[provider],hint=$('phint');
   hint.textContent=ids.length+' Modelle geladen. Jetzt eines auswählen.';
  }catch(e){hint.textContent='Netzwerkfehler beim Laden.';}}
 $('loadmodels').onclick=fetchModels;
-$('provider').onchange=e=>setProvider(e.target.value);
+$('provider').onchange=e=>{
+ // Wert zuerst festhalten: setAuto frischt die Anzeige auf und wuerde
+ // e.target.value sonst schon ueberschrieben haben.
+ const v=e.target.value;
+ if(v==='auto'){setAuto(true);return;}
+ provider=v;save('provider',v);setAuto(false);};
+// Im Automatik-Modus laesst sich hier trotzdem jeder Key pflegen
+$('keyfor').onchange=e=>setProvider(e.target.value);
 $('key').oninput=e=>{const c=MODELS[provider];if(c.keyStore)save(c.keyStore,e.target.value);};
 $('model').onchange=e=>{const c=MODELS[provider];if(c.modelStore)save(c.modelStore,e.target.value);};
 
