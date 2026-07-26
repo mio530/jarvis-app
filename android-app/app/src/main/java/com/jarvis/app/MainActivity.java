@@ -639,7 +639,6 @@ public class MainActivity extends AppCompatActivity {
         @Override public void onEvent(int e, Bundle p) {}
     }
 
-    @Override
     /** Ergebnis des Dateidialogs an die Oberflaeche zurueckgeben.
      *  Wird das vergessen, bleibt das Datei-Feld nach dem Abbrechen fuer
      *  immer blockiert und laesst sich nicht erneut oeffnen. */
