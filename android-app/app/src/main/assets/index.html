@@ -271,6 +271,8 @@ label.lbl{font-size:12px;color:var(--dim);display:block;margin-top:10px;letter-s
 <label class="lbl" style="margin:0 0 4px">Jarvis-Stimmfarbe</label>
 <select id="jvoice"></select>
 <p class="tip">Ruhiger, formeller Butler-Ton. F&#228;llt automatisch auf die Systemstimme zur&#252;ck, wenn kein Netz oder kein Key da ist.</p>
+<button class="mini" id="jvtest" style="border-color:var(--line2)">&#9654; Jarvis-Stimme testen</button>
+<p class="tip" id="jvstat">&#8211;</p>
 </div>
 <div class="row" style="display:block">
 <label class="lbl" style="margin:0 0 4px">Systemstimme (m&#228;nnlich / weiblich / Charaktere)</label>
@@ -310,7 +312,7 @@ border-radius:10px;padding:10px;font-size:10px;line-height:1.45;white-space:pre-
 </div>
 
 <script>
-const APP_VERSION='1.9';
+const APP_VERSION='2.0';
 // ============================================================
 //  DIAGNOSE – Protokoll, Absturz-Erfassung, Selbst-Update
 // ============================================================
@@ -647,7 +649,9 @@ const JV_STYLE='Sprich das Folgende ruhig, formell und leicht zurückhaltend –
  'wie ein britischer Butler: gemessenes Tempo, klare Aussprache, keine Übertreibung. '+
  'Lies ausschließlich den Text nach dem Doppelpunkt vor:\n';
 let jvOn=store('jvon')==='1', jvName=store('jvname')||'Charon';
-let jvAudio=null, jvFail=0, jvSeq=0;
+let jvAudio=null, jvSeq=0;
+let jvPause=0;        // Zeitpunkt, ab dem die KI-Stimme wieder darf
+let jvLastErr='';     // letzte Meldung, wird in den Einstellungen angezeigt
 
 function b64bytes(b64){const s=atob(b64),a=new Uint8Array(s.length);
  for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a;}
@@ -677,43 +681,97 @@ async function playBlob(blob){
  catch(e){logPush('STIMME',['Blob-Wiedergabe fehlgeschlagen, versuche Daten-Adresse']);
   await playSrc(await blobToDataUrl(blob),false);}}
 
-/** Liefert true, wenn die KI-Stimme wirklich gesprochen hat. */
-async function speakJarvis(txt){
- const key=(store('gk')||'').trim();if(!key)return false;
- const seq=++jvSeq;
+/** Fehlerschluessel in verstaendliches Deutsch uebersetzen. */
+function jvGrund(status,body){
+ const b=String(body||'').toLowerCase();
+ if(status===400&&/voice|prebuilt|speech/.test(b))return'Stimmfarbe wird nicht unterstützt';
+ if(status===400)return'Anfrage abgelehnt';
+ if(status===401||status===403)return'Gemini-Key ungültig oder ohne Recht für Sprachausgabe';
+ if(status===404)return'Sprachmodell für diesen Key nicht verfügbar';
+ if(status===429)return'Gratis-Kontingent für Sprachausgabe erschöpft';
+ if(status>=500)return'Google-Server überlastet';
+ if(status===0)return'kein Netz';
+ return'Fehler '+status;}
+
+/** Liefert {ok:true} oder {ok:false,status,msg}. */
+async function speakJarvis(txt,voice){
+ const key=(store('gk')||'').trim();
+ if(!key)return{ok:false,status:401,msg:'kein Gemini-Key eingetragen'};
+ const seq=++jvSeq, vn=voice||jvName;
  const body={contents:[{parts:[{text:JV_STYLE+txt}]}],
   generationConfig:{responseModalities:['AUDIO'],
-   speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:jvName}}}}};
+   speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:vn}}}}};
+ let letzter={ok:false,status:0,msg:'unbekannt'};
  for(let i=0;i<TTS_MODELS.length;i++){
   const m=TTS_MODELS[i];
   try{
    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+m+':generateContent',
     {method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)});
-   if(!r.ok){logPush('STIMME',[m+' -> '+r.status+' '+(await r.text()).slice(0,120)]);continue;}
+   if(!r.ok){const t=(await r.text()).slice(0,300);
+    letzter={ok:false,status:r.status,msg:jvGrund(r.status,t)};
+    logPush('STIMME',[m+'/'+vn+' -> '+r.status+' '+t.slice(0,140)]);continue;}
    const d=await r.json();
    const parts=((d.candidates&&d.candidates[0]&&d.candidates[0].content&&d.candidates[0].content.parts)||[]);
    let inl=null;
    for(let k=0;k<parts.length;k++){const p=parts[k];
     if(p.inlineData||p.inline_data){inl=p.inlineData||p.inline_data;break;}}
-   if(!inl||!inl.data){logPush('STIMME',[m+' -> keine Audiodaten']);continue;}
-   if(seq!==jvSeq)return true;                    // zwischenzeitlich abgebrochen
+   if(!inl||!inl.data){letzter={ok:false,status:200,msg:'Antwort ohne Audiodaten'};
+    logPush('STIMME',[m+'/'+vn+' -> keine Audiodaten']);continue;}
+   if(seq!==jvSeq)return{ok:true};                // zwischenzeitlich abgebrochen
    const mime=inl.mimeType||inl.mime_type||'';
    const rate=parseInt((mime.match(/rate=(\d+)/)||[])[1]||'24000',10);
    const bytes=b64bytes(inl.data);
    const blob=/wav|mpeg|mp3|ogg/i.test(mime)?new Blob([bytes],{type:mime.split(';')[0]}):pcmToWav(bytes,rate);
    await playBlob(blob);
-   logPush('STIMME',[m+' · '+jvName+' · '+Math.round(bytes.length/1024)+' kB']);
-   return true;
-  }catch(e){logPush('STIMME',[m+' -> '+e]);}}
- return false;}
+   logPush('STIMME',[m+' · '+vn+' · '+Math.round(bytes.length/1024)+' kB gesprochen']);
+   return{ok:true};
+  }catch(e){letzter={ok:false,status:0,msg:String(e).slice(0,80)};
+   logPush('STIMME',[m+'/'+vn+' -> '+e]);}}
+ return letzter;}
+
+/** Lehnt Google die gewaehlte Stimmfarbe ab, wird einmal Charon versucht. */
+async function speakJarvisSmart(txt){
+ let r=await speakJarvis(txt,jvName);
+ if(!r.ok&&(r.status===400||r.status===404)&&jvName!=='Charon'){
+  logPush('STIMME',['Stimmfarbe '+jvName+' abgelehnt, versuche Charon']);
+  const r2=await speakJarvis(txt,'Charon');
+  if(r2.ok){
+   add('s','Die Stimmfarbe '+jvName+' unterstützt Google nicht – ich bleibe bei Charon.');
+   jvName='Charon';save('jvname','Charon');if($('jvoice'))$('jvoice').value='Charon';
+   return r2;}}
+ return r;}
+
+/** Zustand der Jarvis-Stimme in den Einstellungen anzeigen. */
+function jvInfo(){const e=$('jvstat');if(!e)return;
+ if(!jvOn){e.textContent='Aus – es spricht die Systemstimme.';return;}
+ if(jvPause>Date.now()){
+  e.textContent='Pausiert bis '+new Date(jvPause).toLocaleTimeString('de-DE')+
+   (jvLastErr?' · Grund: '+jvLastErr:'')+'. Mit „Jarvis-Stimme testen" sofort erneut versuchen.';
+  return;}
+ e.textContent=jvLastErr?('Letzter Fehler: '+jvLastErr+' – wird beim nächsten Sprechen erneut versucht.')
+  :'Bereit.';}
 
 function setJVoice(v){jvOn=v;save('jvon',v?'1':'0');
  if($('sw-jvoice'))$('sw-jvoice').classList.toggle('on',v);
  if($('jvbox'))$('jvbox').style.display=v?'block':'none';
- if(v)jvFail=0;}
+ if(v){jvPause=0;jvLastErr='';}
+ jvInfo();}
 function fillJVoices(){const s=$('jvoice');if(!s)return;s.innerHTML='';
  JVOICES.forEach(x=>{const o=document.createElement('option');o.value=x[0];o.textContent=x[1];s.appendChild(o);});
  s.value=jvName;}
+
+/** Ausdruecklicher Test: Pause aufheben und das Ergebnis benennen. */
+async function jvTest(){
+ if(!jvOn){setJVoice(true);}
+ jvPause=0;jvLastErr='';
+ const e=$('jvstat');if(e)e.textContent='Teste …';
+ const r=await speakJarvisSmart('Systeme bereit. Guten Tag, Meister.');
+ if(r.ok){jvLastErr='';if(e)e.textContent='Funktioniert – das war die Jarvis-Stimme.';}
+ else{jvLastErr=r.msg+' ('+r.status+')';
+  if(e)e.textContent='Geht nicht: '+jvLastErr+
+   (r.status===429?' – das Gratis-Kontingent von Google für Sprachausgabe ist knapp; morgen wieder versuchen.'
+    :r.status===401||r.status===403?' – prüfe den Gemini-Key.':'');
+  speakSys('Die Jarvis-Stimme ist nicht erreichbar, Meister.');}}
 
 // ---------- Sprachausgabe ----------
 function showStop(on){$('stopbtn').classList.toggle('show',on);}
@@ -726,14 +784,18 @@ function stopSpeaking(){
 $('stopbtn').onclick=stopSpeaking;
 $('reactor').onclick=()=>{if(speaking)stopSpeaking();};
 function speak(txt){if(!(speakOn||voiceMode))return;
- if(jvOn&&(store('gk')||'').trim()&&jvFail<3&&navigator.onLine!==false){
+ if(jvOn&&(store('gk')||'').trim()&&Date.now()>=jvPause&&navigator.onLine!==false){
   speaking=true;showStop(true);stopRec();
-  speakJarvis(txt).then(ok=>{
-   if(ok){jvFail=0;speaking=false;showStop(false);if(voiceMode)startRec();return;}
-   jvFail++;speaking=false;
-   if(jvFail>=3)add('s','Die Jarvis-Stimme antwortet nicht – ich nehme wieder die Systemstimme.');
-   speakSys(txt);
-  }).catch(()=>{jvFail++;speaking=false;speakSys(txt);});
+  speakJarvisSmart(txt).then(r=>{
+   if(r.ok){jvLastErr='';jvInfo();speaking=false;showStop(false);if(voiceMode)startRec();return;}
+   // Kein Dauerschalter: nach der Pause versucht die App von allein wieder.
+   const min=r.status===429?30:r.status===401||r.status===403?15:5;
+   jvPause=Date.now()+min*60000;jvLastErr=r.msg+' ('+r.status+')';jvInfo();
+   add('s','Jarvis-Stimme: '+r.msg+'. Ich nehme die Systemstimme und versuche es in '+min+
+    ' Minuten wieder – oder sofort über „Jarvis-Stimme testen" in den Einstellungen.');
+   speaking=false;speakSys(txt);
+  }).catch(e=>{jvPause=Date.now()+120000;jvLastErr=String(e).slice(0,60);jvInfo();
+   speaking=false;speakSys(txt);});
   return;}
  speakSys(txt);}
 function speakSys(txt){
@@ -797,7 +859,7 @@ function settingsCommand(text){const q=' '+text.toLowerCase().trim()+' ',h=(...w
  if(h('andere stimme','stimme wechseln','wechsle die stimme','neue stimme')){
   if(jvOn){const i=JVOICES.findIndex(x=>x[0]===jvName);
    jvName=JVOICES[(i+1)%JVOICES.length][0];save('jvname',jvName);
-   if($('jvoice'))$('jvoice').value=jvName;jvFail=0;
+   if($('jvoice'))$('jvoice').value=jvName;jvPause=0;jvLastErr='';jvInfo();
    return'Ich wechsle die Stimmfarbe: '+jvName+'.';}
   nextVoice();return'Ich wechsle die Stimme, Meister.';}
  if(h('direkt modus an','direktmodus an','ohne filter','kein filter','klartext an','rede klartext')){setDirekt(true);return'Direkt-Modus an. Klartext ab jetzt, Meister.';}
@@ -1535,7 +1597,9 @@ $('sw-dev').onclick=()=>setDev(!devOn);
 $('sw-auto').onclick=()=>setAuto(!autoOn);
 $('sw-direkt').onclick=()=>setDirekt(!direktOn);
 $('sw-jvoice').onclick=()=>{setJVoice(!jvOn);if(jvOn)testVoice();};
-$('jvoice').onchange=e=>{jvName=e.target.value;save('jvname',jvName);jvFail=0;testVoice();};
+$('jvoice').onchange=e=>{jvName=e.target.value;save('jvname',jvName);
+ jvPause=0;jvLastErr='';jvInfo();jvTest();};
+$('jvtest').onclick=jvTest;
 fillJVoices();setJVoice(jvOn);
 $('clear').onclick=()=>{openSettings(false);newChat();};
 $('pit').oninput=()=>{save('pitch',$('pit').value);showSliderVals();};
