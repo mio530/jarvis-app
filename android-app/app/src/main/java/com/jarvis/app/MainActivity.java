@@ -91,11 +91,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private static final String TAG = "JARVIS";
-    /** Eigener Ordner fuer Oberflaeche, Absturzberichte und Protokolle. */
+    /**
+     * Eigener Ordner fuer Oberflaeche, Absturzberichte und Protokolle.
+     * Ab Android 11 darf eine App /sdcard/Jarvis nur mit ausdruecklich
+     * erteiltem Vollzugriff anlegen. Klappt das nicht, wird der
+     * app-eigene Ordner genutzt - der geht immer und ohne Nachfrage.
+     */
     private File jarvisDir() {
         File d = new File(Environment.getExternalStorageDirectory(), "Jarvis");
-        if (!d.exists()) d.mkdirs();
-        return d;
+        if (d.isDirectory() || d.mkdirs()) return d;
+        File fallback = new File(getExternalFilesDir(null), "Jarvis");
+        if (!fallback.isDirectory()) fallback.mkdirs();
+        android.util.Log.d(TAG, "kein Zugriff auf /sdcard/Jarvis, nutze " + fallback);
+        return fallback;
     }
 
     /** Schreibt jeden unbehandelten Absturz in eine Datei, damit er lesbar bleibt. */
@@ -277,7 +285,11 @@ public class MainActivity extends AppCompatActivity {
             try {
                 File f = new File(resolve(path));
                 File p = f.getParentFile();
-                if (p != null && !p.exists() && !p.mkdirs()) return "Ordner nicht anlegbar: " + p;
+                if (p != null && !p.isDirectory() && !p.mkdirs())
+                    return "Ordner nicht anlegbar: " + p +
+                           " – dafuer braucht die App Vollzugriff auf Dateien. " +
+                           "Einstellungen, Apps, Jarvis, Berechtigungen, " +
+                           "\"Zugriff auf alle Dateien\" erlauben.";
                 FileOutputStream out = new FileOutputStream(f);
                 out.write(content.getBytes(StandardCharsets.UTF_8));
                 out.close();

@@ -252,6 +252,9 @@ label.lbl{font-size:12px;color:var(--dim);display:block;margin-top:10px;letter-s
 <div style="padding:12px 0;border-bottom:1px solid #0f2233">
 <div class="row" style="padding-top:0"><span>&#129504; Auto-Modell</span><div class="sw" id="sw-auto"></div></div>
 <p class="tip" style="margin:0 0 4px">W&#228;hlt selbst das passende Modell, nimmt bei Programmier-Aufgaben ein Code-Modell und weicht bei Limits auf einen anderen Anbieter aus.</p>
+<div class="row"><span>&#128274; Beim gew&#228;hlten Modell bleiben</span><div class="sw" id="sw-lock"></div></div>
+<p class="tip" id="lockinfo" style="margin:0 0 4px">&#8211;</p>
+<button class="mini" id="lockfree" style="border-color:var(--line2)">&#8635; Festhalten aufheben und neu w&#228;hlen</button>
 <label class="lbl">KI-Anbieter (viele kostenlos)</label>
 <select id="provider"></select>
 <label class="lbl" id="keylbl">API-Key</label>
@@ -312,7 +315,7 @@ border-radius:10px;padding:10px;font-size:10px;line-height:1.45;white-space:pre-
 </div>
 
 <script>
-const APP_VERSION='2.0';
+const APP_VERSION='2.2';
 // ============================================================
 //  DIAGNOSE – Protokoll, Absturz-Erfassung, Selbst-Update
 // ============================================================
@@ -422,6 +425,10 @@ const SYS_BASE="Du bist J.A.R.V.I.S., ein höflicher, wortkarger KI-Assistent im
 "5. Wenn du über Befehle SPRICHST oder sie erklärst, schreibe sie in einfachen Anführungszeichen "+
 "oder in einen Code-Block, damit sie nicht ausgeführt werden.\n"+
 "6. Erfinde keine Befehle. Nur die oben gelisteten existieren.\n"+
+"7. Erfinde NIEMALS Messwerte. Akkustand, Speicherplatz, Netz, Uhrzeit, Dateilisten "+
+"und Wetter kennst du nicht aus dem Kopf. Sende den passenden Befehl und schreibe dazu "+
+"nur einen kurzen Satz wie 'Einen Moment, Meister.' – die App haengt die echten Werte "+
+"selbst an. Nenne keine eigenen Zahlen.\n"+
 "Alles, was der Meister nicht verlangt hat, wird von der App verworfen – du gewinnst nichts, "+
 "indem du Befehle auf Vorrat anhängst.\n\n"+
 "Wenn der Meister etwas verlangt, das ein Befehl erfüllt: bestätige kurz und hänge genau diesen "+
@@ -852,6 +859,10 @@ function settingsCommand(text){const q=' '+text.toLowerCase().trim()+' ',h=(...w
  if(h('weckwort an','wortaktivierung an','nur auf jarvis')){setWake(true);return'Weckwort an, Meister.';}
  if(h('design','farbe','theme','aussehen','oberfläche','interface','look')){const t=themeFromText(q);
   if(t){applyTheme(t);return'Design geändert: '+THEMES[t].n+'.';}}
+ if(h('modell festhalten','bleib bei dem modell','nicht mehr wechseln','immer dasselbe modell')){
+  setLock(true);return'Ich bleibe beim gewählten Modell, Meister.';}
+ if(h('modell freigeben','wechsel wieder','nicht festhalten','wähle selbst')){
+  setLock(false);return'Festhalten aus – ich wähle wieder selbst, Meister.';}
  if(h('echte stimme an','jarvis-stimme an','jarvis stimme an','ki-stimme an','ki stimme an','sprich wie jarvis')){
   setJVoice(true);return'Jarvis-Stimme aktiv, Meister.';}
  if(h('echte stimme aus','jarvis-stimme aus','jarvis stimme aus','ki-stimme aus','ki stimme aus','normale stimme')){
@@ -972,12 +983,50 @@ const TIERS={
         ['groq','openai/gpt-oss-120b'],['groq','llama-3.3-70b-versatile']]};
 
 let autoOn=store('auto')!=='0';
+// Festhalten: das einmal gewaehlte Modell bleibt, statt bei jeder Frage
+// neu entschieden zu werden. Scheitert es, greift trotzdem die
+// Ausweichkette - sonst waere man an einem kaputten Modell festgenagelt.
+let lockOn=store('lock')==='1';
+let lockPv=store('lockpv')||'', lockModel=store('lockmodel')||'';
+function lockInfo(){const e=$('lockinfo');if(!e)return;
+ if(!lockOn){e.textContent='Aus – Jarvis entscheidet bei jeder Frage neu.';return;}
+ e.textContent=lockPv&&MODELS[lockPv]
+  ?('Festgehalten: '+MODELS[lockPv].label+' · '+lockModel+
+    '. Programmier-Aufgaben nutzen weiter ein Code-Modell.')
+  :'An – das nächste funktionierende Modell wird festgehalten.';}
+function setLock(v){lockOn=v;save('lock',v?'1':'0');
+ if(!v){lockPv='';lockModel='';
+  localStorage.removeItem('jarvis_lockpv');localStorage.removeItem('jarvis_lockmodel');}
+ if($('sw-lock'))$('sw-lock').classList.toggle('on',v);
+ lockInfo();}
+function lockFree(){lockPv='';lockModel='';
+ localStorage.removeItem('jarvis_lockpv');localStorage.removeItem('jarvis_lockmodel');
+ lastUsed='';lockInfo();
+ add('s','Festhalten aufgehoben – Jarvis wählt bei der nächsten Frage neu.');}
+function setLocked(pv,model){if(!lockOn)return;
+ if(lockPv===pv&&lockModel===model)return;
+ lockPv=pv;lockModel=model;save('lockpv',pv);save('lockmodel',model);lockInfo();}
 function setAuto(v){autoOn=v;save('auto',v?'1':'0');if($('sw-auto'))$('sw-auto').classList.toggle('on',v);}
 const cooldown={};   // Anbieter -> Zeit, ab der er wieder darf
 function isCooling(pv){return cooldown[pv]&&Date.now()<cooldown[pv];}
 function coolDown(pv,min){cooldown[pv]=Date.now()+min*60000;
  logPush('LIMIT',[pv+' pausiert fuer '+min+' Min.']);}
 function hasKey(pv){const c=MODELS[pv];return c&&(!c.keyStore||!!store(c.keyStore));}
+
+/** Warum hat ein Anbieter abgelehnt? In verstaendlichem Deutsch. */
+function kiGrund(status,msg){
+ const m=String(msg||'').toLowerCase();
+ if(status===404||/not found|does not exist|unknown model|decommission/.test(m))
+  return'Modell gibt es dort nicht mehr';
+ if(status===429||/quota|rate.?limit|exceed|too many/.test(m))return'Kontingent erschöpft';
+ if(status===401)return'Key ungültig';
+ if(status===403)return'Key ohne Berechtigung';
+ if(status===400&&/model/.test(m))return'Modellname passt nicht';
+ if(status===400)return'Anfrage abgelehnt';
+ if(status===402)return'Guthaben aufgebraucht';
+ if(status>=500)return'Server überlastet';
+ if(status===0)return'kein Netz erreichbar';
+ return'Fehler '+status;}
 
 /** Waehlt das Modell nach Schwierigkeit und weicht bei Limits automatisch aus. */
 async function callLLM(text){
@@ -988,6 +1037,9 @@ async function callLLM(text){
   // Bei Programmieraufgaben zaehlt die Code-Leiter, nicht der eingestellte Anbieter
   if(tier!=='code'){const pref=plan.findIndex(x=>x[0]===provider);
    if(pref>0)plan.unshift(plan.splice(pref,1)[0]);}
+  // Festgehaltenes Modell nach vorn, der Rest bleibt als Notausgang
+  if(lockOn&&lockPv&&lockModel&&MODELS[lockPv]&&hasKey(lockPv)&&tier!=='code'){
+   plan=[[lockPv,lockModel]].concat(plan.filter(x=>!(x[0]===lockPv&&x[1]===lockModel)));}
   logPush('AUTO',['Aufgabe '+tier+' -> '+plan.map(x=>x[0]+'/'+x[1]).join(' , ')]);
   if(tier==='code'&&!plan.length)
    return'Für Programmieraufgaben brauche ich einen Key von Cerebras, Mistral, GitHub Models, '+
@@ -1004,14 +1056,19 @@ async function callLLM(text){
   if(isCooling(pv)){logPush('AUTO',[pv+' uebersprungen (pausiert)']);continue;}
   const res=await rawCall(pv,model,text,tierUsed);
   if(res.ok&&res.text){
-   lastUsed=MODELS[pv].label+' · '+model;
-   if(autoOn)add('s','↪ '+lastUsed+(tierUsed==='code'?'  (Programmiermodell)':''));
+   const neu=MODELS[pv].label+' · '+model;
+   // Nur melden, wenn sich wirklich etwas geaendert hat
+   if(autoOn&&neu!==lastUsed)
+    add('s','↪ '+neu+(tierUsed==='code'?'  (Programmiermodell)':''));
+   lastUsed=neu;
+   if(tierUsed!=='code')setLocked(pv,model);
    return res.text;}
   lastMsg=(res.msg||'').slice(0,140);
   logPush('AUSWEICHEN',[pv+'/'+model+' -> '+res.status+' '+lastMsg]);
   if(res.status===429||res.status===402||/quota|rate.?limit|exceed/i.test(lastMsg))coolDown(pv,20);
   else if(res.status===401||res.status===403)coolDown(pv,120);
-  if(i<plan.length-1)add('s','⚠ '+MODELS[pv].label+' blockiert – wechsle …');}
+  if(i<plan.length-1)
+   add('s','⚠ '+MODELS[pv].label+' · '+model+': '+kiGrund(res.status,lastMsg)+' – wechsle …');}
  return'Alle verfügbaren Modelle sind gerade blockiert, Meister. Letzte Meldung: '+lastMsg;}
 
 
@@ -1318,7 +1375,7 @@ function showHist(o){$('histpanel').classList.toggle('open',o);$('backdrop').cla
 const SYNC_KEYS=['gqk','gk','ork','olh','cbk','mik','ghk','nvk','hfk',
  'gqm','gm','orm','olm','cbm','mim','ghm','nvm','hfm',
  'theme','voice','pitch','rate','speak','wake','auto','provider','dev','updurl',
- 'jvon','jvname','direkt'];
+ 'jvon','jvname','direkt','lock','lockpv','lockmodel'];
 function syncCfg(){const o={};SYNC_KEYS.forEach(k=>{const v=store(k);if(v!==null)o[k]=v;});return o;}
 function applyCfg(o){if(!o)return;Object.keys(o).forEach(k=>{if(SYNC_KEYS.indexOf(k)>=0)save(k,o[k]);});}
 function ghHeaders(){return{'Authorization':'Bearer '+(store('ghtok')||'').trim(),
@@ -1540,7 +1597,19 @@ const GATE={
  sehen:/sieh|schau|siehst|kamera|erkenn|was ist das/,
  taschenlampe:/licht|lampe|taschenlampe|leucht|dunkel/,
  starte:/starte|öffne|\bapp\b|zeig/,
- oeffnen:/öffne|starte|zeig|webseite|browser|\blink\b|\bseite\b|internet/
+ oeffnen:/öffne|starte|zeig|webseite|browser|\blink\b|\bseite\b|internet/,
+ // Befehle, die etwas ausgeben: nur auf ausdruecklichen Wunsch, sonst
+ // wiederholt sich die Ausgabe bei jeder Rueckfrage darueber
+ status:/akku|batterie|speicher|netz|status|zustand|auslesen|ermittel|wie viel|wieviel|systeminfo|gerät/,
+ dateien:/datei|ordner|verzeichnis|downloads|liste|zeig/,
+ apps:/\bapps?\b|installiert|programme/,
+ appinfo:/version|herkunft|appinfo|welche fassung/,
+ diagnose:/diagnose|bericht|protokoll|fehler|log/,
+ logcat:/protokoll|logcat|systemprotokoll/,
+ absturz:/absturz|crash|abgestürzt/,
+ einfuegen:/zwischenablage|einfügen|kopiert/,
+ lesen:/lies|lesen|inhalt|öffne.*datei/,
+ kontakt:/kontakt|nummer von|telefonbuch/
 };
 /** Darf dieser Befehl laufen? Ungelistete Befehle sind harmlos und immer erlaubt. */
 function commandAllowed(cmd,userText){
@@ -1556,13 +1625,18 @@ function unmaskCode(s,keep){return s.replace(/@@CODE(\d+)@@/g,(m,i)=>keep[+i]);}
 
 // ---------- Befehle ausführen, die Jarvis selbst in seiner Antwort sendet ----------
 async function runAICommands(text,userText){let did=[],jobs=[],weg=[],n=0;
+ const schon={};                    // gleicher Befehl nur einmal je Antwort
  const mk=maskCode(text);
  const clean=unmaskCode(mk.out.replace(/\[\[\s*([a-zA-ZäöüÄÖÜ_]+)\s*:?\s*([^\]]*)\]\]/g,(m,cmd,val)=>{
   cmd=cmd.toLowerCase().replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ä/g,'ae');
   val=(val||'').trim();
   const lv=val.toLowerCase();
+  const schluessel=cmd+':'+lv;
+  if(schon[schluessel]){weg.push(cmd+' (doppelt)');return'';}
+  schon[schluessel]=1;
   if(++n>2){weg.push(cmd+' (zu viele)');return'';}
-  if(!commandAllowed(cmd,userText)){weg.push(cmd+(val?':'+val:''));return'';}
+  if(!commandAllowed(cmd,userText)){
+   weg.push(cmd+(val?':'+val:'')+' (nicht verlangt)');return'';}
   if(cmd==='theme'){if(applyTheme(lv))did.push('Design: '+THEMES[lv].n);}
   else if(cmd==='speak'){setSpeak(lv==='an'||lv==='on');did.push('Vorlesen '+lv);}
   else if(cmd==='voice'){setVoiceMode(lv==='an'||lv==='on');did.push('Sprachmodus '+lv);}
@@ -1574,7 +1648,7 @@ async function runAICommands(text,userText){let did=[],jobs=[],weg=[],n=0;
   else if(cmd==='sync'){jobs.push(['sync','']);}
   else{jobs.push([cmd,val]);}       // Gerätebefehle laufen asynchron
   return '';}),mk.keep).trim();
- if(weg.length)logPush('BEFEHL-VERWORFEN',[weg.join(' , ')+' – vom Meister nicht verlangt']);
+ if(weg.length)logPush('BEFEHL-VERWORFEN',[weg.join(' , ')]);
  if(did.length)setTimeout(()=>add('s','⚙ '+did.join(' · ')),60);
  for(const [c,v] of jobs){const res=await deviceCmd(c,v);
   if(res!==null&&res!==undefined)add('j',res);}
@@ -1595,6 +1669,9 @@ $('sw-voice').onclick=()=>setVoiceMode(!voiceMode);
 $('sw-wake').onclick=()=>setWake(!wakeOn);
 $('sw-dev').onclick=()=>setDev(!devOn);
 $('sw-auto').onclick=()=>setAuto(!autoOn);
+$('sw-lock').onclick=()=>setLock(!lockOn);
+$('lockfree').onclick=lockFree;
+setLock(lockOn);
 $('sw-direkt').onclick=()=>setDirekt(!direktOn);
 $('sw-jvoice').onclick=()=>{setJVoice(!jvOn);if(jvOn)testVoice();};
 $('jvoice').onchange=e=>{jvName=e.target.value;save('jvname',jvName);
