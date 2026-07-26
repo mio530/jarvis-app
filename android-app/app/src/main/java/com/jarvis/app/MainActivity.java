@@ -46,6 +46,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
+import java.io.StringWriter;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -66,21 +68,70 @@ public class MainActivity extends AppCompatActivity {
     private SpeechRecognizer recognizer;
     private final Handler main = new Handler(Looper.getMainLooper());
 
+    /**
+     * Beim Start werden nur unkritische Berechtigungen erfragt.
+     * SMS und Telefonie sind unter Android "eingeschraenkte Berechtigungen" und
+     * werden bei seitlich installierten Apps blockiert – wir fragen sie deshalb
+     * erst dann, wenn sie wirklich gebraucht werden, und weichen sonst auf die
+     * jeweilige System-App aus.
+     */
     private static final String[] PERMS = {
             Manifest.permission.RECORD_AUDIO,
             Manifest.permission.CAMERA,
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.READ_CONTACTS,
-            Manifest.permission.CALL_PHONE,
-            Manifest.permission.SEND_SMS,
             Manifest.permission.READ_EXTERNAL_STORAGE,
             Manifest.permission.WRITE_EXTERNAL_STORAGE,
     };
 
+    private boolean has(String perm) {
+        return androidx.core.content.ContextCompat.checkSelfPermission(this, perm)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private static final String TAG = "JARVIS";
+    /** Eigener Ordner fuer Oberflaeche, Absturzberichte und Protokolle. */
+    private File jarvisDir() {
+        File d = new File(Environment.getExternalStorageDirectory(), "Jarvis");
+        if (!d.exists()) d.mkdirs();
+        return d;
+    }
+
+    /** Schreibt jeden unbehandelten Absturz in eine Datei, damit er lesbar bleibt. */
+    private void installCrashHandler() {
+        final Thread.UncaughtExceptionHandler prev = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((thread, ex) -> {
+            try {
+                StringWriter sw = new StringWriter();
+                ex.printStackTrace(new PrintWriter(sw));
+                String report = "Zeit: " + new java.util.Date() + "\n"
+                        + "Version: " + versionString() + "\n"
+                        + "Geraet: " + Build.MANUFACTURER + " " + Build.MODEL
+                        + " (Android " + Build.VERSION.RELEASE + ")\n"
+                        + "Thread: " + thread.getName() + "\n\n" + sw;
+                FileOutputStream out = new FileOutputStream(new File(jarvisDir(), "crash.txt"));
+                out.write(report.getBytes(StandardCharsets.UTF_8));
+                out.close();
+                android.util.Log.e(TAG, "Absturz gespeichert", ex);
+            } catch (Throwable ignored) { }
+            if (prev != null) prev.uncaughtException(thread, ex);
+        });
+    }
+
+    private String versionString() {
+        try {
+            android.content.pm.PackageInfo pi =
+                    getPackageManager().getPackageInfo(getPackageName(), 0);
+            long code = Build.VERSION.SDK_INT >= 28 ? pi.getLongVersionCode() : pi.versionCode;
+            return pi.versionName + " (Build " + code + ")";
+        } catch (Exception e) { return "?"; }
+    }
+
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        installCrashHandler();
 
         List<String> ask = new ArrayList<>();
         for (String p : PERMS) ask.add(p);
@@ -123,7 +174,22 @@ public class MainActivity extends AppCompatActivity {
             @Override public void onDone(String id) { jsCall("window.onTtsEnd&&onTtsEnd()"); }
         });
 
-        web.loadUrl("file:///android_asset/index.html");
+        loadInterface();
+    }
+
+    /**
+     * Laedt die Oberflaeche. Liegt unter /sdcard/Jarvis/index.html eine Datei,
+     * wird diese bevorzugt – so lassen sich Aktualisierungen einspielen,
+     * ohne die App neu zu bauen ("Selbst-Update").
+     */
+    private void loadInterface() {
+        File custom = new File(jarvisDir(), "index.html");
+        if (custom.exists() && custom.length() > 5000) {
+            android.util.Log.d(TAG, "Lade aktualisierte Oberflaeche: " + custom);
+            web.loadUrl("file://" + custom.getAbsolutePath());
+        } else {
+            web.loadUrl("file:///android_asset/index.html");
+        }
     }
 
     private void jsCall(final String js) {
@@ -275,23 +341,40 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public String call(String number) {
             try {
-                Intent i = new Intent(Intent.ACTION_CALL, Uri.parse("tel:" + number));
-                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(i);
-                return "Rufe " + number + " an, Meister.";
-            } catch (SecurityException e) {
-                return "Anruf-Berechtigung fehlt.";
+                if (has(Manifest.permission.CALL_PHONE)) {
+                    Intent i = new Intent(Intent.ACTION_CALL, Uri.parse("tel:" + number));
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(i);
+                    return "Rufe " + number + " an, Meister.";
+                }
+                // Ohne Berechtigung: Telefon-App mit vorgewaehlter Nummer oeffnen
+                Intent d = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + number));
+                d.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(d);
+                ActivityCompat.requestPermissions(MainActivity.this,
+                        new String[]{Manifest.permission.CALL_PHONE}, 2);
+                return "Telefon geoeffnet mit " + number + " – zum Waehlen antippen, Meister.";
             } catch (Exception e) { return "Fehler: " + e; }
         }
 
         @JavascriptInterface
         public String sendSms(String number, String text) {
             try {
-                SmsManager sm = Build.VERSION.SDK_INT >= 31
-                        ? getSystemService(SmsManager.class)
-                        : SmsManager.getDefault();
-                sm.sendTextMessage(number, null, text, null, null);
-                return "SMS an " + number + " gesendet, Meister.";
+                if (has(Manifest.permission.SEND_SMS)) {
+                    SmsManager sm = Build.VERSION.SDK_INT >= 31
+                            ? getSystemService(SmsManager.class)
+                            : SmsManager.getDefault();
+                    sm.sendTextMessage(number, null, text, null, null);
+                    return "SMS an " + number + " gesendet, Meister.";
+                }
+                // Ohne Berechtigung: Nachrichten-App mit fertigem Text oeffnen
+                Intent i = new Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + number));
+                i.putExtra("sms_body", text);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(i);
+                return "Nachrichten-App geoeffnet – nur noch senden, Meister. "
+                        + "(Direktversand: Einstellungen > Apps > J.A.R.V.I.S. > Menue > "
+                        + "'Eingeschraenkte Einstellungen zulassen', dann SMS erlauben.)";
             } catch (Exception e) { return "SMS fehlgeschlagen: " + e; }
         }
 
@@ -400,6 +483,42 @@ public class MainActivity extends AppCompatActivity {
                 String out = sb.toString().trim();
                 return out.isEmpty() ? "(kein Rueckgabewert)" : out;
             } catch (Exception e) { return "Fehler: " + e; }
+        }
+
+        // --- Diagnose ------------------------------------------------------
+        /** Version, Gerät und Herkunft der geladenen Oberfläche. */
+        @JavascriptInterface
+        public String appInfo() {
+            File custom = new File(jarvisDir(), "index.html");
+            return "App " + versionString()
+                    + " | Oberflaeche: " + (custom.exists() && custom.length() > 5000
+                        ? "aktualisiert (" + custom.length() / 1024 + " kB)" : "eingebaut")
+                    + " | " + Build.MANUFACTURER + " " + Build.MODEL
+                    + " | Android " + Build.VERSION.RELEASE + " (SDK " + Build.VERSION.SDK_INT + ")"
+                    + " | Ordner: " + jarvisDir().getAbsolutePath();
+        }
+
+        /** Liest das System-Protokoll dieser App (die letzten n Zeilen). */
+        @JavascriptInterface
+        public String logcat(int lines) {
+            if (lines <= 0 || lines > 500) lines = 150;
+            String out = exec("logcat -d -v brief -t " + lines + " *:W");
+            return out.isEmpty() ? "(Protokoll leer)" : out;
+        }
+
+        /** Gibt den letzten gespeicherten Absturzbericht zurueck. */
+        @JavascriptInterface
+        public String lastCrash() {
+            File f = new File(jarvisDir(), "crash.txt");
+            if (!f.exists()) return "Kein Absturzbericht vorhanden.";
+            String s = readFile(f.getAbsolutePath());
+            return s.length() > 4000 ? s.substring(0, 4000) + "\n... gekuerzt" : s;
+        }
+
+        /** Laedt die Oberflaeche neu (nach einem Selbst-Update). */
+        @JavascriptInterface
+        public void reload() {
+            main.post(MainActivity.this::loadInterface);
         }
 
         @JavascriptInterface
