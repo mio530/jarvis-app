@@ -148,6 +148,14 @@ public class MainActivity extends AppCompatActivity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(true);
         s.setAllowContentAccess(true);
+        // Die Oberflaeche hat eigene Schriftgroessen. Ohne das hier wuerde die
+        // Systemschriftgroesse alles zusaetzlich vergroessern und das Layout
+        // aus dem Bild schieben ("wie reingezoomt").
+        s.setTextZoom(100);
+        s.setUseWideViewPort(true);      // viewport-Angabe der Seite beachten
+        s.setLoadWithOverviewMode(false);
+        s.setSupportZoom(false);
+        s.setBuiltInZoomControls(false);
 
         web.setWebViewClient(new WebViewClient());
         web.setWebChromeClient(new WebChromeClient() {

@@ -15,7 +15,7 @@
 :root{--bg:#05080f;--bg2:#070c16;--panel:rgba(10,18,32,.72);--line:#123650;--cyan:#22d3ee;--cyan2:#38bdf8;
 --txt:#d6f2fb;--dim:#5f7f92;--ok:#34d399;--warn:#f59e0b;--red:#f87171;--glow:0 0 18px rgba(var(--rgb),.55);
 --line2:#1c4a6b;--deep1:#0e2a3f;--deep2:#12324a;--solid:#0b7285;--field:#0a1220;--rgb:34,211,238}
-*{box-sizing:border-box}html,body{margin:0;background:var(--bg)}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);max-width:100%;overflow-x:hidden}
 body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--txt);min-height:100vh;
 padding-bottom:calc(86px + env(safe-area-inset-bottom));
 background:var(--bg)}
@@ -26,12 +26,12 @@ button{cursor:pointer;-webkit-tap-highlight-color:rgba(var(--rgb),.3);touch-acti
 header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;
 padding:calc(9px + env(safe-area-inset-top)) 14px 9px;background:var(--bg);
 border-bottom:1px solid var(--line);backdrop-filter:blur(6px)}
-header .logo{width:26px;height:26px}
-.brand{font-weight:800;letter-spacing:3px;color:var(--cyan);text-shadow:var(--glow)}
-.clock{margin-left:auto;text-align:right;line-height:1.2;white-space:nowrap}
+header .logo{width:26px;height:26px;flex:0 0 auto}
+.brand{font-weight:800;letter-spacing:3px;color:var(--cyan);text-shadow:var(--glow);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.clock{margin-left:auto;text-align:right;line-height:1.2;white-space:nowrap;min-width:0;overflow:hidden}
 .clock b{display:block;font-size:15px;letter-spacing:1px}
 .clock span{display:block;font-size:10px;color:var(--dim);letter-spacing:1px;text-transform:uppercase}
-.gear{background:none;border:0;color:var(--dim);font-size:20px;padding:4px 2px}
+.gear{background:none;border:0;color:var(--dim);font-size:20px;padding:4px 2px;flex:0 0 auto}
 .wrap{max-width:760px;margin:0 auto;padding:12px 12px 8px}
 @media (min-width:850px){
  .wrap{max-width:1100px;display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
@@ -154,9 +154,11 @@ padding:10px;margin-top:8px;background:var(--panel)}
 .hrow .ht small{color:var(--dim);font-size:10px}
 .hrow .hx{background:none;border:0;color:var(--dim);font-size:17px;padding:2px 4px;flex:0 0 auto}
 #settings h3{margin:0 0 6px;color:var(--cyan2);letter-spacing:2px;font-size:14px;text-transform:uppercase}
-.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid #0f2233}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid #0f2233;flex-wrap:wrap}
+.row>span{flex:1 1 60%;min-width:0;overflow-wrap:anywhere}
 .row:last-child{border-bottom:0}
-select,.mini{width:100%;background:var(--field);color:var(--txt);border:1px solid var(--line2);border-radius:10px;padding:11px;margin-top:6px;font-size:15px}
+select,.mini{width:100%;max-width:100%;background:var(--field);color:var(--txt);border:1px solid var(--line2);border-radius:10px;padding:11px;margin-top:6px;font-size:15px}
+#logbox,pre{overflow-wrap:anywhere;word-break:break-word}
 label.lbl{font-size:12px;color:var(--dim);display:block;margin-top:10px;letter-spacing:.5px}
 .sw{width:46px;height:26px;border-radius:13px;background:var(--deep2);position:relative;flex:0 0 auto}
 .sw.on{background:var(--solid)}.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.15s}.sw.on::after{left:23px}
@@ -248,7 +250,8 @@ label.lbl{font-size:12px;color:var(--dim);display:block;margin-top:10px;letter-s
 <select id="theme"></select>
 </div>
 <div style="padding:12px 0;border-bottom:1px solid #0f2233">
-<div class="row" style="padding-top:0"><span>&#129504; Auto-Modell &#8211; w&#228;hlt selbst, nimmt bei Programmier-Aufgaben ein Code-Modell und weicht bei Limits aus</span><div class="sw" id="sw-auto"></div></div>
+<div class="row" style="padding-top:0"><span>&#129504; Auto-Modell</span><div class="sw" id="sw-auto"></div></div>
+<p class="tip" style="margin:0 0 4px">W&#228;hlt selbst das passende Modell, nimmt bei Programmier-Aufgaben ein Code-Modell und weicht bei Limits auf einen anderen Anbieter aus.</p>
 <label class="lbl">KI-Anbieter (viele kostenlos)</label>
 <select id="provider"></select>
 <label class="lbl" id="keylbl">API-Key</label>
@@ -261,9 +264,9 @@ label.lbl{font-size:12px;color:var(--dim);display:block;margin-top:10px;letter-s
 <div class="row"><span>Antwort vorlesen</span><div class="sw" id="sw-speak"></div></div>
 <div class="row"><span>Immer-Sprachmodus</span><div class="sw" id="sw-voice"></div></div>
 <div class="row"><span>Weckwort &#8222;Jarvis&#8220;</span><div class="sw" id="sw-wake"></div></div>
-<div class="row"><span>&#128241; Ger&#228;te-Zugriff (Kamera, Licht, Kontakte&#8230;)</span><div class="sw" id="sw-dev"></div></div>
-<div class="row"><span>&#128520; Direkt-Modus (kein Geschw&#228;tz, Klartext)</span><div class="sw" id="sw-direkt"></div></div>
-<div class="row"><span>&#127908; Jarvis-Stimme (echte KI-Stimme, braucht Gemini-Key)</span><div class="sw" id="sw-jvoice"></div></div>
+<div class="row"><span>&#128241; Ger&#228;te-Zugriff</span><div class="sw" id="sw-dev"></div></div>
+<div class="row"><span>&#128520; Direkt-Modus</span><div class="sw" id="sw-direkt"></div></div>
+<div class="row"><span>&#127908; Jarvis-Stimme</span><div class="sw" id="sw-jvoice"></div></div>
 <div class="row" style="display:block" id="jvbox">
 <label class="lbl" style="margin:0 0 4px">Jarvis-Stimmfarbe</label>
 <select id="jvoice"></select>
@@ -307,7 +310,7 @@ border-radius:10px;padding:10px;font-size:10px;line-height:1.45;white-space:pre-
 </div>
 
 <script>
-const APP_VERSION='1.8';
+const APP_VERSION='1.9';
 // ============================================================
 //  DIAGNOSE – Protokoll, Absturz-Erfassung, Selbst-Update
 // ============================================================
