@@ -391,8 +391,6 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) { return "Fehler: " + e; }
         }
 
-        // --- Telefon -------------------------------------------------------
-        @JavascriptInterface
         /**
          * Sucht Kontakte nach Namen und liefert "Name|Nummer" je Zeile.
          * Ohne das hier hatte das Modell keine Moeglichkeit, an eine Nummer zu
@@ -445,6 +443,8 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) { return "Fehler beim Schreiben: " + e; }
         }
 
+        // --- Telefon -------------------------------------------------------
+        @JavascriptInterface
         public String call(String number) {
             try {
                 if (has(Manifest.permission.CALL_PHONE)) {
