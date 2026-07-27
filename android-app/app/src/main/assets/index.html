@@ -278,7 +278,8 @@ label.lbl{font-size:12px;color:var(--dim);display:block;margin-top:10px;letter-s
 <div class="row" style="display:block" id="jvbox">
 <label class="lbl" style="margin:0 0 4px">Jarvis-Stimmfarbe</label>
 <select id="jvoice"></select>
-<p class="tip">Ruhiger, formeller Butler-Ton. F&#228;llt automatisch auf die Systemstimme zur&#252;ck, wenn kein Netz oder kein Key da ist.</p>
+<p class="tip">Ruhiger, formeller Butler-Ton. F&#228;llt automatisch auf die Systemstimme zur&#252;ck, wenn kein Netz oder kein Key da ist.<br>
+<b>Achtung:</b> Googles Gratis-Tarif erlaubt nur etwa <b>10 Sprachausgaben pro Tag</b>. Danach kommt „Kontingent ersch&#246;pft&#8220; und es spricht die Systemstimme. F&#252;r st&#228;ndiges Vorlesen ist die Jarvis-Stimme daher nicht gedacht &#8211; eher f&#252;r einzelne Antworten.</p>
 <button class="mini" id="jvtest" style="border-color:var(--line2)">&#9654; Jarvis-Stimme testen</button>
 <p class="tip" id="jvstat">&#8211;</p>
 </div>
@@ -320,7 +321,7 @@ border-radius:10px;padding:10px;font-size:10px;line-height:1.45;white-space:pre-
 </div>
 
 <script>
-const APP_VERSION='3.0';
+const APP_VERSION='3.1';
 // ============================================================
 //  DIAGNOSE – Protokoll, Absturz-Erfassung, Selbst-Update
 // ============================================================
@@ -675,14 +676,41 @@ const JVOICES=[
  ['Aoede','Aoede · weiblich, luftig'],
  ['Despina','Despina · weiblich, sanft'],
  ['Sulafat','Sulafat · weiblich, warm']];
-const TTS_MODELS=['gemini-2.5-flash-preview-tts','gemini-2.5-pro-preview-tts'];
-const JV_STYLE='Sprich das Folgende ruhig, formell und leicht zurückhaltend – '+
- 'wie ein britischer Butler: gemessenes Tempo, klare Aussprache, keine Übertreibung. '+
- 'Lies ausschließlich den Text nach dem Doppelpunkt vor:\n';
+const TTS_MODELS=['gemini-3.1-flash-tts-preview',
+ 'gemini-2.5-flash-preview-tts','gemini-2.5-pro-preview-tts'];
+// Die Anweisung darf selbst KEINEN Doppelpunkt und keinen Verweis auf einen
+// enthalten - sonst weiss das Modell nicht, wo der vorzulesende Text beginnt,
+// und liest Teile der Anweisung mit vor.
+const JV_STYLE='Sprich ruhig, formell und zurueckhaltend wie ein britischer Butler, '+
+ 'in gemessenem Tempo. Sprich ausschliesslich den folgenden Text, Wort fuer Wort, '+
+ 'ohne Zusaetze und ohne Wiederholung dieser Anweisung.\n\n---\n\n';
 let jvOn=store('jvon')==='1', jvName=store('jvname')||'Charon';
 let jvAudio=null, jvSeq=0;
 let jvPause=0;        // Zeitpunkt, ab dem die KI-Stimme wieder darf
 let jvLastErr='';     // letzte Meldung, wird in den Einstellungen angezeigt
+
+/**
+ * Bereitet Text fuers Vorlesen auf.
+ * Code, Adressen und Sonderzeichen bringen die Sprachmodelle durcheinander -
+ * dann sprechen sie etwas anderes als auf dem Bildschirm steht. Sehr lange
+ * Antworten werden zudem gekuerzt, weil die Sprachausgabe sonst abbricht.
+ */
+function sprechText(t){
+ let x=String(t==null?'':t)
+  .replace(/```[\s\S]*?```/g,' Codeblock. ')
+  .replace(/`([^`]*)`/g,'$1')
+  .replace(/https?:\/\/\S+/g,' Link. ')
+  .replace(/\[\[[^\]]*\]\]/g,'')
+  .replace(/[*_#>|]/g,' ')
+  .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu,'')
+  .replace(/[ \t]+/g,' ')
+  .replace(/\n{2,}/g,'\n')
+  .trim();
+ if(x.length>1200){
+  const teil=x.slice(0,1200),
+   p=Math.max(teil.lastIndexOf('. '),teil.lastIndexOf('! '),teil.lastIndexOf('? '));
+  x=(p>400?teil.slice(0,p+1):teil)+' Der Rest steht auf dem Bildschirm, Meister.';}
+ return x;}
 
 function b64bytes(b64){const s=atob(b64),a=new Uint8Array(s.length);
  for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a;}
@@ -729,7 +757,7 @@ async function speakJarvis(txt,voice){
  const key=(store('gk')||'').trim();
  if(!key)return{ok:false,status:401,msg:'kein Gemini-Key eingetragen'};
  const seq=++jvSeq, vn=voice||jvName;
- const body={contents:[{parts:[{text:JV_STYLE+txt}]}],
+ const body={contents:[{parts:[{text:JV_STYLE+sprechText(txt)}]}],
   generationConfig:{responseModalities:['AUDIO'],
    speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:vn}}}}};
  let letzter={ok:false,status:0,msg:'unbekannt'};
@@ -829,7 +857,8 @@ function speak(txt){if(!(speakOn||voiceMode))return;
    speaking=false;speakSys(txt);});
   return;}
  speakSys(txt);}
-function speakSys(txt){
+function speakSys(roh){
+ const txt=sprechText(roh);
  if(NATIVE){speaking=true;showStop(true);stopRec();try{AndroidVoice.speak(txt);}catch(e){speaking=false;showStop(false);}return;}
  try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);
   const sel=vlist[voiceIdx],cp=curPitch(),cr=curRate();
