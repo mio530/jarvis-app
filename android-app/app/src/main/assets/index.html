@@ -320,7 +320,7 @@ border-radius:10px;padding:10px;font-size:10px;line-height:1.45;white-space:pre-
 </div>
 
 <script>
-const APP_VERSION='2.8';
+const APP_VERSION='3.0';
 // ============================================================
 //  DIAGNOSE – Protokoll, Absturz-Erfassung, Selbst-Update
 // ============================================================
@@ -402,6 +402,15 @@ const SYS_BASE="Du bist J.A.R.V.I.S., ein höflicher, wortkarger KI-Assistent im
 "[[oeffnen:youtube.com]] – öffnet die App, wenn es eine gibt, sonst die Webseite\n"+
 "[[web:youtube.com]] – erzwingt den Browser, auch wenn eine App da ist\n"+
 "[[starte:Spotify]] – App direkt nach Namen starten (bevorzugt bei App-Wünschen)\n"+
+"[[suche:youtube|Katzenvideos]] – IN einer App suchen. Bekannt: youtube, spotify, maps, "+
+"play, amazon, kleinanzeigen, tiktok, instagram, twitch, netflix, github, wikipedia, "+
+"idealo, bahn, google. Ohne App-Angabe sucht Jarvis im Netz.\n"+
+"[[navigation:Berlin Hauptbahnhof]] – Navigation starten\n"+
+"[[wecker:7:30]] – Wecker · [[timer:10]] – Timer in Minuten\n"+
+"[[termin:Zahnarzt|2026-08-01T09:00]] – Kalendereintrag\n"+
+"[[whatsapp:Mama|Text]] – WhatsApp an einen Kontakt oder eine Nummer\n"+
+"[[senden:telegram|Text]] – Text in eine App teilen\n"+
+"[[kontaktzeigen:Papa]] – Kontaktkarte öffnen\n"+
 "[[anrufen:Papa]] – Anruf; Name oder Nummer, Namen werden nachgeschlagen · [[sms:0123456]] – SMS\n"+
 "[[karte:Berlin]] – Karte öffnen\n"+
 "[[kopieren:Text]] – in Zwischenablage · [[einfuegen]] – Zwischenablage lesen\n"+
@@ -1271,6 +1280,47 @@ function directDevice(text){const q=' '+text.toLowerCase()+' ',h=(...w)=>w.some(
  if(h('absturz','crash'))return['absturz',''];
  if(h('selbst update','selbstupdate','aktualisiere dich','update dich','neue version laden'))return['selbstupdate',''];
  if(h('neu starten','neustart','lade dich neu'))return['neustart',''];
+ // --- In Apps etwas tun: navigieren, wecken, Kontakte, dann suchen ----
+ // "navigiere nach Berlin" / "bring mich nach Hause"
+ const nav=text.match(/^\s*(?:jarvis[,\s]*)?(?:navigier(?:e)?|route|bring mich|fahr(?:e)?\s+mich|weg)\s+(?:nach|zu|zur|zum)\s+(.+?)\s*$/i);
+ if(nav)return['navigation',nav[1].replace(/[.!?]+$/,'').trim()];
+
+ // "stell einen Wecker auf 7 Uhr" / "weck mich um 6:30"
+ const wk=text.match(/(?:wecker|weck mich)[^0-9]*(\d{1,2})(?:[:.\s](\d{2}))?\s*(?:uhr)?/i);
+ if(wk)return['wecker',wk[1]+':'+(wk[2]||'00')];
+
+ // "stell einen Timer auf 10 Minuten"
+ const tm=text.match(/(?:timer|eieruhr|erinner(?:e)?\s+mich)\D*(\d{1,3})\s*(?:minut|min)/i);
+ if(tm)return['timer',tm[1]];
+
+ // "zeig mir den Kontakt Papa"
+ const kt=text.match(/^\s*(?:jarvis[,\s]*)?(?:zeig(?:e)?\s+(?:mir\s+)?(?:den\s+)?kontakt|kontakt(?:karte)?\s+von)\s+(.+?)\s*$/i);
+ if(kt)return['kontaktzeigen',kt[1].replace(/[.!?]+$/,'').trim()];
+
+ // "schreib Mama auf WhatsApp dass ich später komme"
+ const wa=text.match(/^\s*(?:jarvis[,\s]*)?(?:schreib(?:e)?|sag)\s+(.+?)\s+(?:auf|über|per|via|mit)\s+whatsapp\s*(?:,?\s*(?:dass|das)\s+)?(.*)$/i);
+ if(wa)return['whatsapp',wa[1].trim()+'|'+(wa[2]||'').replace(/[.!?]+$/,'').trim()];
+
+ // "such auf YouTube nach Katzenvideos"
+ const su=text.match(/^\s*(?:jarvis[,\s]*)?(?:such(?:e)?|find(?:e)?|zeig(?:e)?\s+mir|schau|guck)\s+(?:mir\s+)?(?:mal\s+)?(?:(?:auf|in|bei)\s+(?:der\s+|dem\s+)?([A-Za-zÄÖÜäöüß.]+)\s+)?(?:nach\s+|nach:\s*)?(.+?)\s*$/i);
+ if(su&&su[2]&&!/^(mir|mal|das|es)$/i.test(su[2].trim())){
+  const app=(su[1]||'').toLowerCase().replace(/[.]/g,'');
+  const was=su[2]
+   .replace(/^(nach|für|fuer)\s+/i,'')
+   .replace(/^(?:dem|den|das|der|die|ein|eine|einen)\s+(?:lied|song|musik|video|film|serie|buch)\s+/i,'')
+   .replace(/^(?:lied|song|musik|video|film|serie)\s+/i,'')
+   .replace(/[.!?]+$/,'').trim();
+  const BEKANNT=['youtube','yt','spotify','maps','karten','play','playstore','amazon',
+   'ebay','kleinanzeigen','tiktok','instagram','twitch','netflix','github','wikipedia',
+   'idealo','db','bahn','google','web'];
+  if(app&&BEKANNT.indexOf(app==='yt'?'youtube':app)>=0)
+   return['suche',(app==='yt'?'youtube':app)+'|'+was];
+  if(app)return['suche',app+'|'+was];                 // unbekannte App: Versuch
+  // ohne App-Angabe: Videos/Musik gehen an die passende App, sonst ins Netz
+  if(/\bvideo/i.test(text))return['suche','youtube|'+was];
+  if(/\b(lied|song|musik)/i.test(text))return['suche','spotify|'+was];
+  return['suche','google|'+was];}
+
  // App-Start und Adressen ZULETZT pruefen: sonst schluckt der App-Start
  // Saetze wie "mach das Licht an", weil sie mit "mach" beginnen.
  const oeff=text.match(/^\s*(?:jarvis[,\s]*)?(?:öffne|oeffne|starte|start|zeig(?:e)?\s+mir|geh(?:e)?\s+(?:auf|zu)|mach(?:\s+mir)?(?:\s+mal)?)\s+(?:die\s+|den\s+|das\s+)?(.+?)\s*$/i);
@@ -1648,7 +1698,12 @@ async function deviceCmd(cmd,val){
   case 'loeschen': return ND.deleteFile(val||'');
   case 'vollzugriff': return ND.requestAllFiles();
   case 'apps': return kappen(ND.listApps(),25,'Apps');
-  case 'starte': return ND.launchApp(val||'');
+  case 'starte': {const r=ND.launchApp(val||'');
+   if(String(r).startsWith('MEHRERE')){
+    const n=String(r).split('|').slice(1);
+    return'Mehrere Apps passen auf „'+(val||'')+'“, Meister:\n'+
+     n.map(x=>'• '+x).join('\n')+'\nWelche soll ich starten?';}
+   return r;}
   case 'befehl': case 'shell': return ND.exec(val||'');
   case 'anrufen': return await anrufen(val||'');
   case 'sms': {const i=(val||'').indexOf('|');
@@ -1667,6 +1722,34 @@ async function deviceCmd(cmd,val){
     if(r&&!/nicht gefunden|fehler/i.test(r))return r;}
    let u=val||'';if(!/^[a-z]+:/i.test(u))u='https://'+u;return ND.openUrl(u);}
   case 'web': {let u=val||'';if(!/^[a-z]+:/i.test(u))u='https://'+u;return ND.openUrl(u);}
+  // In einer App suchen: [[suche:youtube|Katzenvideos]]
+  case 'suche': case 'suchen': {const i=(val||'').indexOf('|');
+   if(i<0)return ND.searchIn('google',val||'');
+   return ND.searchIn(val.slice(0,i).trim(),val.slice(i+1).trim());}
+  case 'senden': {const i=(val||'').indexOf('|');
+   if(i<0)return ND.sendTo('',val||'');
+   return ND.sendTo(val.slice(0,i).trim(),val.slice(i+1).trim());}
+  case 'whatsapp': {const i=(val||'').indexOf('|');
+   const wen=i<0?val:val.slice(0,i), txt=i<0?'':val.slice(i+1);
+   if(istNummer(wen))return ND.whatsapp(wen.replace(/[^+0-9]/g,''),txt);
+   // Name -> erst in den Kontakten nachschlagen
+   const t=String(ND.findContact?ND.findContact(wen.trim()):'').split('\n').filter(Boolean);
+   if(!t.length)return'Ich finde keinen Kontakt namens "'+wen.trim()+'", Meister.';
+   if(t.length>1)return'Mehrere Kontakte passen, Meister:\n'+
+    t.slice(0,8).map(z=>'• '+z.replace('|',' – ')).join('\n');
+   return ND.whatsapp(t[0].slice(t[0].lastIndexOf('|')+1),txt);}
+  case 'kontaktzeigen': return ND.showContact(val||'');
+  case 'navigation': case 'route': return ND.navigate(val||'');
+  case 'wecker': {const m=(val||'').match(/(\d{1,2})[:.\s]?(\d{2})?/);
+   if(!m)return'Auf wann soll ich den Wecker stellen, Meister?';
+   return ND.setAlarm(parseInt(m[1],10),parseInt(m[2]||'0',10),'Jarvis');}
+  case 'timer': {const min=parseInt(val,10);
+   if(!min||min<1)return'Auf wie viele Minuten, Meister?';
+   return ND.setTimer(min*60,'Jarvis');}
+  case 'termin': {const i=(val||'').indexOf('|');
+   const titel=i<0?(val||'Termin'):val.slice(0,i);
+   const wann=i<0?Date.now()+3600000:(Date.parse(val.slice(i+1))||Date.now()+3600000);
+   return ND.addEvent(titel.trim(),wann,60);}
   case 'karte': return ND.openUrl('https://maps.google.com/?q='+encodeURIComponent(val||''));
   case 'logcat': return ND.logcat(parseInt(val)||120);
   case 'absturz': return ND.lastCrash();
@@ -1694,6 +1777,18 @@ async function deviceCmd(cmd,val){
   case 'taschenlampe': case 'licht': return await setTorch(val==='an'||val==='on');
   case 'vibrieren': if(navigator.vibrate){navigator.vibrate([200,100,200]);return'Vibration, Meister.';}return'Vibration nicht verfügbar.';
   case 'oeffnen': case 'open': case 'web': {let u=val||'';if(!/^[a-z]+:/i.test(u))u='https://'+u;window.open(u,'_blank');return'Geöffnet: '+u;}
+  case 'suche': case 'suchen': {const i=(val||'').indexOf('|');
+   const app=i<0?'':val.slice(0,i).trim(), q=i<0?(val||''):val.slice(i+1).trim();
+   const ZIEL={youtube:'https://www.youtube.com/results?search_query=',
+    amazon:'https://www.amazon.de/s?k=',wikipedia:'https://de.wikipedia.org/w/index.php?search=',
+    github:'https://github.com/search?q=',netflix:'https://www.netflix.com/search?q=',
+    twitch:'https://www.twitch.tv/search?term=',maps:'https://www.google.com/maps/search/'};
+   const b=ZIEL[app.toLowerCase()]||'https://www.google.com/search?q=';
+   window.open(b+encodeURIComponent(q),'_blank');
+   return'Suche '+(app?'in '+app+' ':'')+'nach „'+q+'“.';}
+  case 'navigation': case 'route': window.open('https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(val||''),'_blank');return'Route geöffnet.';
+  case 'wecker': case 'timer': case 'termin': case 'kontaktzeigen': case 'whatsapp': case 'senden':
+   return'Das geht nur in der Android-App, Meister.';
   case 'anrufen': {if(!istNummer(val))
     return'Ich kenne die Nummer von "'+val+'" nicht, Meister. In der App schlage ich Namen in den Kontakten nach.';
    location.href='tel:'+encodeURIComponent(val);return'Wähle '+val+' …';}
@@ -1751,6 +1846,30 @@ const GATE={
  starte:/starte|öffne|\bapp\b|zeig/,
  oeffnen:/öffne|starte|zeig|webseite|browser|\blink\b|\bseite\b|internet|geh\b|mach\b/,
  web:/öffne|starte|zeig|webseite|browser|\blink\b|\bseite\b|internet|geh\b/,
+ suche:/such|find|zeig|schau|guck|video|lied|song|musik|nach\b/,
+ suchen:/such|find|zeig|schau|guck|video|lied|song|musik|nach\b/,
+ senden:/send|teil|schick|weiterleit|nachricht/,
+ whatsapp:/whatsapp|schreib|nachricht|schick/,
+ kontaktzeigen:/kontakt|nummer|telefonbuch|adressbuch/,
+ navigation:/navigier|route|weg nach|fahr|bring mich|karte/,
+ route:/navigier|route|weg nach|fahr|bring mich|karte/,
+ wecker:/wecker|weck mich|aufstehen|alarm/,
+ timer:/timer|kurzzeit|erinner mich in|eieruhr|minuten/,
+ termin:/termin|kalender|verabred|treffen|eintrag/,
+ // Diese liefen bisher ungeprueft. "Das ist nicht WhatsApp" hat darum eine
+ // Karte geoeffnet, weil das Modell [[karte:...]] angehaengt hat.
+ karte:/karte|maps|wo ist|wo liegt|adresse|standort|route|navigier|weg nach|zeig.*auf der karte/,
+ bild:/bild|foto|zeichn|male|malen|grafik|logo|illustration|generier|erstell/,
+ bildspeichern:/speicher|sicher|behalt|download/,
+ licht:/licht|lampe|taschenlampe|leucht|dunkel/,
+ vibrieren:/vibrier|vibration|brumm|rüttel/,
+ kopieren:/kopier|zwischenablage|merk dir/,
+ datei:/datei|dokument|anhang|öffne.*datei/,
+ speichern:/speicher|sicher|notier|schreib.*datei|leg.*ab/,
+ melden:/meld|benachrichtig|erinner|hinweis|mitteilung/,
+ teilen:/teil|send|schick|weiterleit/,
+ wachhalten:/wach|display|bildschirm|an lassen|nicht ausgehen/,
+ shell:/befehl|shell|terminal|kommando|führe.*aus|\bbash\b/,
  // Befehle, die etwas ausgeben: nur auf ausdruecklichen Wunsch, sonst
  // wiederholt sich die Ausgabe bei jeder Rueckfrage darueber
  status:/akku|batterie|speicher|netz|status|zustand|auslesen|ermittel|wie viel|wieviel|systeminfo|gerät/,
@@ -1782,7 +1901,8 @@ const BEFEHLE=['theme','speak','voice','provider','clear','verlauf','auto','dire
  'bild','sehen','foto','taschenlampe','licht','vibrieren','status','oeffnen','anrufen','sms',
  'karte','kopieren','einfuegen','kontakt','datei','speichern','melden','teilen','wachhalten',
  'dateien','lesen','schreiben','loeschen','vollzugriff','apps','starte','befehl','shell','web',
- 'diagnose','logcat','absturz','selbstupdate','neustart','appinfo','bildspeichern'];
+ 'diagnose','logcat','absturz','selbstupdate','neustart','appinfo','bildspeichern',
+ 'suche','suchen','senden','whatsapp','kontaktzeigen','navigation','route','wecker','timer','termin'];
 
 /** Toleranter Befehlsleser.
  *  Modelle verhauen die Klammern staendig: [[theme:gold]] , [[][theme:gold]] ,

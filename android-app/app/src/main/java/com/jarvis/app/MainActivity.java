@@ -21,6 +21,9 @@ import android.os.Looper;
 import android.os.StatFs;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+import android.content.ActivityNotFoundException;
+import android.provider.AlarmClock;
+import android.provider.CalendarContract;
 import android.provider.ContactsContract;
 import android.provider.Settings;
 import android.speech.RecognizerIntent;
@@ -377,18 +380,54 @@ public class MainActivity extends AppCompatActivity {
             try {
                 PackageManager pm = getPackageManager();
                 String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+                if (q.isEmpty()) return "Welche App, Meister?";
+
+                // Nicht den ERSTEN Treffer nehmen, sondern nach Guete bewerten.
+                // Sonst gewinnt "Sticker Maker for WhatsApp" gegen WhatsApp,
+                // weil dessen Paketname das Wort ebenfalls enthaelt.
+                int besteGuete = 0;
+                List<ApplicationInfo> beste = new ArrayList<>();
                 for (ApplicationInfo a : pm.getInstalledApplications(0)) {
-                    Intent i = pm.getLaunchIntentForPackage(a.packageName);
-                    if (i == null) continue;
+                    if (pm.getLaunchIntentForPackage(a.packageName) == null) continue;
                     String label = String.valueOf(pm.getApplicationLabel(a)).toLowerCase(Locale.ROOT);
-                    if (label.contains(q) || a.packageName.toLowerCase(Locale.ROOT).contains(q)) {
-                        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(i);
-                        return "Starte " + pm.getApplicationLabel(a) + ", Meister.";
-                    }
+                    String paket = a.packageName.toLowerCase(Locale.ROOT);
+                    int guete = 0;
+                    if (label.equals(q))                      guete = 100;   // genau der Name
+                    else if (paket.equals(q))                 guete = 95;
+                    else if (paket.endsWith("." + q))         guete = 90;    // com.whatsapp
+                    else if (label.startsWith(q + " "))       guete = 80;    // "Google Maps" fuer "google"
+                    else if (label.startsWith(q))             guete = 70;
+                    else if (wortTreffer(label, q))           guete = 60;    // eigenes Wort im Namen
+                    else if (label.contains(q))               guete = 30;
+                    else if (paket.contains(q))               guete = 10;    // schwaechster Treffer
+                    if (guete == 0) continue;
+                    if (guete > besteGuete) { besteGuete = guete; beste.clear(); }
+                    if (guete == besteGuete) beste.add(a);
                 }
-                return "App nicht gefunden: " + query;
+                if (beste.isEmpty()) return "App nicht gefunden: " + query;
+
+                // Mehrere gleich gute? Dann nicht raten, sondern nachfragen.
+                // "amazon" kann Shopping, Music oder Luna sein - und "Schach"
+                // ist zweimal installiert.
+                if (beste.size() > 1) {
+                    StringBuilder sb = new StringBuilder("MEHRERE");
+                    for (int i = 0; i < beste.size() && i < 6; i++)
+                        sb.append('|').append(pm.getApplicationLabel(beste.get(i)));
+                    return sb.toString();
+                }
+                ApplicationInfo ziel = beste.get(0);
+                Intent i = pm.getLaunchIntentForPackage(ziel.packageName);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(i);
+                return "Starte " + pm.getApplicationLabel(ziel) + ", Meister.";
             } catch (Exception e) { return "Fehler: " + e; }
+        }
+
+        /** Kommt der Suchbegriff im Namen als eigenes Wort vor? */
+        private boolean wortTreffer(String label, String q) {
+            for (String w : label.split("[^\\p{L}\\p{N}]+"))
+                if (w.equals(q)) return true;
+            return false;
         }
 
         /**
@@ -619,6 +658,186 @@ public class MainActivity extends AppCompatActivity {
             if (!f.exists()) return "Kein Absturzbericht vorhanden.";
             String s = readFile(f.getAbsolutePath());
             return s.length() > 4000 ? s.substring(0, 4000) + "\n... gekuerzt" : s;
+        }
+
+        /**
+         * Suchtabelle: App -> Adressmuster -> Paketname.
+         * Fast jede App nimmt eine Adresse entgegen und springt direkt in ihre
+         * Suche. Damit kann Jarvis IN den Apps etwas tun, statt sie nur zu
+         * oeffnen - ganz ohne Sonderrechte.
+         */
+        private final String[][] SUCHZIELE = {
+            {"youtube",   "https://www.youtube.com/results?search_query=%s", "com.google.android.youtube"},
+            {"spotify",   "spotify:search:%s",                               "com.spotify.music"},
+            {"maps",      "geo:0,0?q=%s",                                    "com.google.android.apps.maps"},
+            {"karten",    "geo:0,0?q=%s",                                    "com.google.android.apps.maps"},
+            {"play",      "market://search?q=%s",                            "com.android.vending"},
+            {"playstore", "market://search?q=%s",                            "com.android.vending"},
+            {"amazon",    "https://www.amazon.de/s?k=%s",                    "com.amazon.mShop.android.shopping"},
+            {"ebay",      "https://www.kleinanzeigen.de/s-%s/k0",            "com.ebay.kleinanzeigen"},
+            {"kleinanzeigen","https://www.kleinanzeigen.de/s-%s/k0",         "com.ebay.kleinanzeigen"},
+            {"tiktok",    "https://www.tiktok.com/search?q=%s",              "com.zhiliaoapp.musically"},
+            {"instagram", "https://www.instagram.com/explore/tags/%s/",      "com.instagram.android"},
+            {"twitch",    "https://www.twitch.tv/search?term=%s",            "tv.twitch.android.app"},
+            {"netflix",   "https://www.netflix.com/search?q=%s",             "com.netflix.mediaclient"},
+            {"github",    "https://github.com/search?q=%s",                  "com.github.android"},
+            {"wikipedia", "https://de.wikipedia.org/w/index.php?search=%s",  ""},
+            {"idealo",    "https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q=%s", "de.idealo.android"},
+            {"db",        "https://www.bahn.de/buchung/fahrplan/suche#sts=true&so=%s", "de.hafas.android.db"},
+            {"bahn",      "https://www.bahn.de/buchung/fahrplan/suche#sts=true&so=%s", "de.hafas.android.db"},
+            {"google",    "https://www.google.com/search?q=%s",              ""},
+            {"web",       "https://www.google.com/search?q=%s",              ""}
+        };
+
+        /** Oeffnet die Suche der genannten App. Fehlt die App, geht es im Browser. */
+        @JavascriptInterface
+        public String searchIn(String app, String query) {
+            String a = app == null ? "" : app.trim().toLowerCase(Locale.ROOT);
+            String q = query == null ? "" : query.trim();
+            if (q.isEmpty()) return "Wonach soll ich suchen, Meister?";
+            String muster = null, paket = "";
+            for (String[] z : SUCHZIELE)
+                if (z[0].equals(a)) { muster = z[1]; paket = z[2]; break; }
+            if (muster == null) {
+                // Unbekannte App: erst starten, dann im Netz suchen
+                String r = launchApp(a);
+                String w = openUrl("https://www.google.com/search?q="
+                        + Uri.encode(a + " " + q));
+                return r.startsWith("Starte")
+                        ? r + " Die App kennt keine direkte Suche, ich suche daneben im Netz."
+                        : w;
+            }
+            String url = String.format(muster, Uri.encode(q));
+            try {
+                Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                if (!paket.isEmpty()) i.setPackage(paket);
+                startActivity(i);
+                return "Suche in " + a + " nach \"" + q + "\", Meister.";
+            } catch (ActivityNotFoundException e) {
+                // App nicht da -> ohne Paketbindung, also im Browser
+                try {
+                    Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(
+                            url.startsWith("http") ? url
+                            : "https://www.google.com/search?q=" + Uri.encode(a + " " + q)));
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(i);
+                    return a + " ist nicht installiert - ich suche im Browser, Meister.";
+                } catch (Exception e2) { return "Fehler: " + e2; }
+            } catch (Exception e) { return "Fehler: " + e; }
+        }
+
+        /** Text in eine bestimmte App teilen (WhatsApp, Telegram, Mail ...). */
+        @JavascriptInterface
+        public String sendTo(String app, String text) {
+            try {
+                Intent i = new Intent(Intent.ACTION_SEND);
+                i.setType("text/plain");
+                i.putExtra(Intent.EXTRA_TEXT, text == null ? "" : text);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                String a = app == null ? "" : app.trim().toLowerCase(Locale.ROOT);
+                String paket = "";
+                if (a.contains("whats")) paket = "com.whatsapp";
+                else if (a.contains("telegram")) paket = "org.telegram.messenger";
+                else if (a.contains("signal")) paket = "org.thoughtcrime.securesms";
+                else if (a.contains("mail") || a.contains("gmail")) paket = "com.google.android.gm";
+                else if (a.contains("discord")) paket = "com.discord";
+                if (!paket.isEmpty()) i.setPackage(paket);
+                startActivity(paket.isEmpty()
+                        ? Intent.createChooser(i, "Senden mit")
+                              .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) : i);
+                return "Geoeffnet zum Senden" + (paket.isEmpty() ? "" : " in " + a) + ", Meister.";
+            } catch (ActivityNotFoundException e) {
+                return "Diese App ist nicht installiert, Meister.";
+            } catch (Exception e) { return "Fehler: " + e; }
+        }
+
+        /** WhatsApp-Nachricht an eine Nummer vorbereiten. */
+        @JavascriptInterface
+        public String whatsapp(String nummer, String text) {
+            try {
+                String n = (nummer == null ? "" : nummer).replaceAll("[^+0-9]", "").replace("+", "");
+                Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(
+                        "https://wa.me/" + n + "?text=" + Uri.encode(text == null ? "" : text)));
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(i);
+                return "WhatsApp geoeffnet, Meister - zum Senden noch antippen.";
+            } catch (Exception e) { return "Fehler: " + e; }
+        }
+
+        /** Kontaktkarte anzeigen. */
+        @JavascriptInterface
+        public String showContact(String name) {
+            try {
+                Intent i = new Intent(Intent.ACTION_VIEW,
+                        Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_FILTER_URI,
+                                Uri.encode(name == null ? "" : name)));
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(i);
+                return "Kontakt geoeffnet, Meister.";
+            } catch (Exception e) { return "Fehler: " + e; }
+        }
+
+        /** Navigation starten. */
+        @JavascriptInterface
+        public String navigate(String ziel) {
+            try {
+                Intent i = new Intent(Intent.ACTION_VIEW,
+                        Uri.parse("google.navigation:q=" + Uri.encode(ziel == null ? "" : ziel)));
+                i.setPackage("com.google.android.apps.maps");
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(i);
+                return "Navigation nach " + ziel + " gestartet, Meister.";
+            } catch (ActivityNotFoundException e) {
+                return openUrl("https://www.google.com/maps/dir/?api=1&destination="
+                        + Uri.encode(ziel == null ? "" : ziel));
+            } catch (Exception e) { return "Fehler: " + e; }
+        }
+
+        /** Wecker stellen. */
+        @JavascriptInterface
+        public String setAlarm(int stunde, int minute, String label) {
+            try {
+                Intent i = new Intent(AlarmClock.ACTION_SET_ALARM);
+                i.putExtra(AlarmClock.EXTRA_HOUR, stunde);
+                i.putExtra(AlarmClock.EXTRA_MINUTES, minute);
+                if (label != null && !label.isEmpty()) i.putExtra(AlarmClock.EXTRA_MESSAGE, label);
+                i.putExtra(AlarmClock.EXTRA_SKIP_UI, true);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(i);
+                return String.format(Locale.GERMANY, "Wecker auf %02d:%02d gestellt, Meister.", stunde, minute);
+            } catch (Exception e) { return "Fehler: " + e; }
+        }
+
+        /** Kurzzeitwecker stellen. */
+        @JavascriptInterface
+        public String setTimer(int sekunden, String label) {
+            try {
+                Intent i = new Intent(AlarmClock.ACTION_SET_TIMER);
+                i.putExtra(AlarmClock.EXTRA_LENGTH, sekunden);
+                if (label != null && !label.isEmpty()) i.putExtra(AlarmClock.EXTRA_MESSAGE, label);
+                i.putExtra(AlarmClock.EXTRA_SKIP_UI, true);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(i);
+                return "Timer auf " + (sekunden / 60) + " Minuten "
+                        + (sekunden % 60 > 0 ? sekunden % 60 + " Sekunden " : "") + "gestellt, Meister.";
+            } catch (Exception e) { return "Fehler: " + e; }
+        }
+
+        /** Termin im Kalender anlegen (Kalender oeffnet sich zum Bestaetigen). */
+        @JavascriptInterface
+        public String addEvent(String titel, long beginn, int dauerMin) {
+            try {
+                Intent i = new Intent(Intent.ACTION_INSERT)
+                        .setData(CalendarContract.Events.CONTENT_URI)
+                        .putExtra(CalendarContract.Events.TITLE, titel == null ? "Termin" : titel)
+                        .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, beginn)
+                        .putExtra(CalendarContract.EXTRA_EVENT_END_TIME,
+                                  beginn + (long) Math.max(dauerMin, 15) * 60000L);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(i);
+                return "Kalender geoeffnet, Meister - zum Speichern noch bestaetigen.";
+            } catch (Exception e) { return "Fehler: " + e; }
         }
 
         /** Laedt die Oberflaeche neu (nach einem Selbst-Update). */
